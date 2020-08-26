@@ -1,0 +1,110 @@
+module generic-sdbus {
+     yang-version 1.1;
+     namespace "https://terastream/ns/yang/generic-sdbus";
+     prefix "ts-gsb";
+
+     organization
+        "Deutsche Telekom AG";
+
+    contact
+        "Landgrabenweg 151
+        53227 Bonn, Germany";
+
+
+     description
+          "The module enables users to define necessary information for the
+          generic sd-bus plugin. The informations for the generic ubus plugins
+          are as follows:
+               - mapping between sd-bus service and the YANG module for the
+                 sd-bus service
+               - interfaces (name)
+               - methods (name and arguments) for an sd-bus interface
+
+          Additionaly RPC are defined for ubus objects that do not have a YANG
+          module specified.
+          ";
+
+     revision "2020-08-26" {
+          description "Add ubus object filtering support.";
+     }
+
+     rpc sd-bus-call {
+          description
+               "RPC for implementig the sd-bus call for sd-bus service that do not
+               have their YANG module implemented on the system.";
+          status current;
+          input {
+               list sd-bus-method {
+                    key "sd-bus sd-bus-service sd-bus-object-path sd-bus-interface sd-bus-method";
+                    
+                    leaf sd-bus {
+                         description "sd-bus bus to contact.";
+                         mandatory true;
+                         type enumeration {
+                              enum SYSTEM;
+                              enum USER;
+                         }
+                    }
+
+                    leaf sd-bus-service {
+                         description "sd-bus service to contact.";
+                         mandatory true;
+                         type string;
+                    }
+
+                    leaf sd-bus-object-path {
+                         description "sd-bus object path.";
+                         mandatory true;
+                         type string;
+                    }
+
+                    leaf sd-bus-interface {
+                         description "sd-bus interface name.";
+                         mandatory true;
+                         type string;
+                    }
+
+                    leaf sd-bus-method {
+                         description "sd-bus method name.";
+                         mandatory true;
+                         type string;
+                    }
+
+                    leaf sd-bus-method-signature {
+                         description "sd-bus method signature.";
+                         mandatory true;
+                         type string;
+                    }
+
+                    leaf sd-bus-method-arguments {
+                         description "sd-bus method arguments in busctl format.";
+                         mandatory true;
+                         type string;
+                         
+                    }
+               }
+          }
+          output {
+               list sd-bus-result {
+                    description "sd-bus call result.";
+                    key sd-bus-method;
+                    leaf sd-bus-method {
+                         description
+                              "sd-bus object, ubus method and message that was
+                              invoked to produce this result";
+                         type string;
+                    }
+                    leaf sd-bus-response {
+                         description
+                              "The response message of the invoked sd-bus call";
+                         type string;
+                    }
+                    leaf sd-bus-signature {
+                         description
+                              "The response message signature of the invoked sd-bus call";
+                         type string;
+                    }
+               }
+          }
+     }
+}
