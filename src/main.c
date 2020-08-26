@@ -40,6 +40,7 @@
 #include <sysrepo.h>
 #include <sysrepo/values.h>
 #include <common.h>
+#include <generic-sdbus.h>
 
 
 #define YANG_MODEL "generic-sdbus"
@@ -52,16 +53,6 @@ typedef struct sr_ctx_s {
   sr_conn_ctx_t *startup_conn;
   sr_session_ctx_t *startup_sess;
 } sr_ctx_t;
-
-int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
-				       const sr_val_t *input, const size_t input_cnt,
-				       sr_event_t event, uint32_t request_id,
-				       sr_val_t **output, size_t *output_cnt, void *private_data)
-{
-	printf("HELLO RPC\n");
-
-	return SR_ERR_OK;
-}
 
 // static bool sdbus_running_datastore_is_empty_check(void)
 // {

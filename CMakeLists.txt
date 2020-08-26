@@ -10,6 +10,8 @@ include_directories(${CMAKE_SOURCE_DIR}/src/)
 
 set(SOURCES
     src/main.c
+    src/xpath.c
+    src/generic-sdbus.c
 )
 
 # git SHA1 hash
