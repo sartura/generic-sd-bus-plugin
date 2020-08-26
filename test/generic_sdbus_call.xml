@@ -1,0 +1,36 @@
+<sd-bus-call xmlns="https://terastream/ns/yang/generic-sdbus">
+    <sd-bus-method>
+        <sd-bus-service>org.freedesktop.systemd1</sd-bus-service>
+        <sd-bus-object-path>/org/freedesktop/systemd1</sd-bus-object-path>
+        <sd-bus-interface>org.freedesktop.systemd1.Manager</sd-bus-interface>
+        <sd-bus-method>StartTransientUnit</sd-bus-method>
+        <sd-bus-method-signature>ssa(sv)a(sa(sv))</sd-bus-method-signature>
+        <sd-bus-method-arguments>"SCOPE-NAME.scope" "fail" 1 "PIDs" au 1 325 0</sd-bus-method-arguments>
+        <sd-bus>USER</sd-bus>
+    </sd-bus-method>
+</sd-bus-call>
+
+<sd-bus-call xmlns="https://terastream/ns/yang/generic-sdbus">
+    <sd-bus-method>
+        <sd-bus>SYSTEM</sd-bus>
+        <sd-bus-service>org.freedesktop.NetworkManager</sd-bus-service>
+        <sd-bus-object-path>/org/freedesktop/NetworkManager/Devices/1</sd-bus-object-path>
+        <sd-bus-interface>org.freedesktop.DBus.Properties</sd-bus-interface>
+        <sd-bus-method>GetAll</sd-bus-method>
+        <sd-bus-method-signature>s</sd-bus-method-signature>
+        <sd-bus-method-arguments>"org.freedesktop.NetworkManager.Device"</sd-bus-method-arguments>
+    </sd-bus-method>
+</sd-bus-call>
+
+<sd-bus-call xmlns="https://terastream/ns/yang/generic-sdbus">
+    <sd-bus-method>
+        <sd-bus-service>org.freedesktop.systemd1</sd-bus-service>
+        <sd-bus-object-path>/org/freedesktop/systemd1</sd-bus-object-path>
+        <sd-bus-interface>org.freedesktop.systemd1.Manager</sd-bus-interface>
+        <sd-bus-method>StartTransientUnit</sd-bus-method>
+        <sd-bus-method-signature>ssa(ss)ss</sd-bus-method-signature>
+        <sd-bus-method-arguments>"SCOPE-NAME.scope" "fail" 1 "PIDs" "PIDs" "SCOPE-NAME.scope" "fail"</sd-bus-method-arguments>
+        <sd-bus>SYSTEM</sd-bus>
+    </sd-bus-method>
+</sd-bus-call>
+
