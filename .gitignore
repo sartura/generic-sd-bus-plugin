@@ -1,0 +1,4 @@
+build
+cross
+src/version.h
+.vscode/
