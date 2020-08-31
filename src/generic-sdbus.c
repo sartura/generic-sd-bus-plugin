@@ -2,6 +2,7 @@
 #include <json-c/json.h>
 #include <generic-sdbus.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include <systemd/sd-bus.h>
 #include <systemd/sd-bus-protocol.h>
@@ -751,6 +752,29 @@ static int append_complete_types_to_message(sd_bus_message *m, const char *signa
 			case SD_BUS_TYPE_UINT64: {
 				error = find_next_argument(arguments, p);
 				error = sd_bus_message_append_basic(m, type, &(uint64_t){(uint64_t) atoi(p)});
+				if (error < 0) {
+					free(p);
+        			fprintf(stderr, "Failed to append SD_BUS_TYPE_UINT64: %s\n", strerror(-error));
+					return error;
+				}
+  
+				break;
+			}
+			case SD_BUS_TYPE_DOUBLE: {
+				double value;
+				char *eptr;
+				error = find_next_argument(arguments, p);
+
+				value = strtod(p, &eptr);
+				if (value == 0)
+				{
+					if (errno == ERANGE){
+						printf("The value provided was out of range\n");
+						return -EINVAL;
+					}
+				}
+
+				error = sd_bus_message_append_basic(m, type, &value);
 				if (error < 0) {
 					free(p);
         			fprintf(stderr, "Failed to append SD_BUS_TYPE_UINT64: %s\n", strerror(-error));
