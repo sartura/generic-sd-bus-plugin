@@ -187,6 +187,7 @@ static int execute_test(const char *test_signature, sd_bus_message *m, const cha
 	} else
 	{
     	printf("TEST FAILED\n");
+    	printf("got:\n\t%s\nexpected:\n\t%s\n", message, result);
     	free(message);
     	return sd_bus_reply_method_return(m, "x", 1);
 	}
