@@ -61,17 +61,17 @@ static int append_uint(char **ret, uint64_t value);
 static int append_double(char **ret, double value);
 
 /* The vtable of our little object, implements the net.poettering.Calculator interface */
-static const sd_bus_vtable calculator_vtable[] = {
+static const sd_bus_vtable test_vtable[] = {
     SD_BUS_VTABLE_START(0),
-    SD_BUS_METHOD("Test1", "s", "x", method_test1, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test2", "x", "x", method_test2, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test3", "d", "x", method_test3, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test4", "v", "x", method_test4, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test5", "a{ss}", "x", method_test5, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test6", "a(ssso)", "x", method_test6, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test7", "asssbb", "x", method_test7, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test8", "sayssusaia(sv)", "x", method_test8, SD_BUS_VTABLE_UNPRIVILEGED),
-    SD_BUS_METHOD("Test9", "ssa(sv)a(sa(sv))", "x", method_test9, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test1", TEST_1_SIGNATURE, "x", method_test1, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test2", TEST_2_SIGNATURE, "x", method_test2, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test3", TEST_3_SIGNATURE, "x", method_test3, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test4", TEST_4_SIGNATURE, "x", method_test4, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test5", TEST_5_SIGNATURE, "x", method_test5, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test6", TEST_6_SIGNATURE, "x", method_test6, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test7", TEST_7_SIGNATURE, "x", method_test7, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test8", TEST_8_SIGNATURE, "x", method_test8, SD_BUS_VTABLE_UNPRIVILEGED),
+    SD_BUS_METHOD("Test9", TEST_9_SIGNATURE, "x", method_test9, SD_BUS_VTABLE_UNPRIVILEGED),
     SD_BUS_VTABLE_END};
 
 int main(int argc, char *argv[]) {
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
                                  &slot,
                                  "/net/sysrepo/SDBUSTest", /* object path */
                                  "net.sysrepo.SDBUSTest",  /* interface name */
-                                 calculator_vtable,
+                                 test_vtable,
                                  NULL);
     if (r < 0) {
         printf("Failed to issue method call: %s\n", strerror(-r));
