@@ -1,6 +1,7 @@
 
 #include <json-c/json.h>
 #include <generic-sdbus.h>
+#include <errno.h>
 
 #include <systemd/sd-bus.h>
 #include <systemd/sd-bus-protocol.h>
@@ -9,13 +10,17 @@
 #include <sysrepo/values.h>
 #include <common.h>
 
-static int create_json_response_from_message(sd_bus_message *m, json_object **result_jobj);
 static int find_next_argument(char **arguments, char *arg);
 static int find_next_argument_string(char **arguments, char *arg);
 static const char *find_matching_bracket(const char *str);
 static int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments);
-
-
+static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container);
+static int append_value(char **ret, const char *value);
+static int append_string(char **ret, const char *value);
+static int append_boolean(char **ret, int value);
+static int append_sint(char **ret, int64_t value);
+static int append_uint(char **ret, uint64_t value);
+static int append_double(char **ret, double value);
 
 int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 				       const sr_val_t *input, const size_t input_cnt,
@@ -31,14 +36,14 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 	char *sd_bus_method = NULL;
 	char *sd_bus_method_signature = NULL;
 	char *sd_bus_method_arguments = NULL;
+	char *string_reply = NULL;
 	const char *sd_bus_reply_signature = NULL;
 	sr_val_t *result = NULL;
 	size_t count = 0;
     sd_bus *bus = NULL;
-    sd_bus_message *m = NULL;
-    sd_bus_message *reply = NULL;
+    sd_bus_message *sd_message = NULL;
+    sd_bus_message *sd_message_reply = NULL;
     sd_bus_error *error = NULL;
-	json_object *json_response = NULL;
 
 
 	for (int i = 0; i < input_cnt; i++) {
@@ -78,7 +83,7 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 	}
 
 	rc = sd_bus_message_new_method_call(
-		bus, &m, sd_bus_service, sd_bus_object_path,
+		bus, &sd_message, sd_bus_service, sd_bus_object_path,
 		sd_bus_interface, sd_bus_method);
 
 	if (rc < 0) {
@@ -86,26 +91,26 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 		goto cleanup;
 	}
 
-	rc = append_complete_types_to_message(m, sd_bus_method_signature, &sd_bus_method_arguments);
+	rc = append_complete_types_to_message(sd_message, sd_bus_method_signature, &sd_bus_method_arguments);
 	
     if (rc < 0) {
         fprintf(stderr, "Failed to append: %s\n", strerror(-rc));
         goto cleanup;
     }
 
-	rc = sd_bus_call(bus, m,  0, error, &reply);
+	rc = sd_bus_call(bus, sd_message,  0, error, &sd_message_reply);
 	if (rc < 0) {
         fprintf(stderr, "Failed to call: %s\n", strerror(-rc));
 		goto cleanup;
 	}
 
-	sd_bus_reply_signature = sd_bus_message_get_signature(m, 1);
+	sd_bus_reply_signature = sd_bus_message_get_signature(sd_message, 1);
 	if (!sd_bus_reply_signature) {
         fprintf(stderr, "Failed to get reply message signature");
         goto cleanup;
     }
 
-    rc = create_json_response_from_message(reply, &json_response);
+    rc = parse_message_to_string(sd_message_reply, &string_reply, false);
     if (rc < 0) {
       fprintf(stderr, "Failed to json: %s\n", strerror(-rc));
       goto cleanup;
@@ -124,7 +129,7 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
     rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
     SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
 
-    rc = sr_val_set_str_data(&result[count], SR_STRING_T, json_object_to_json_string(json_response));
+    rc = sr_val_set_str_data(&result[count], SR_STRING_T, string_reply);
     SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
 
 	count++;
@@ -137,10 +142,10 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 
 	count++;
 
-	FREE_SAFE(json_response);
+	FREE_SAFE(string_reply);
 	FREE_SAFE(tail_node);
-	FREE_SAFE(m);
-	FREE_SAFE(reply);
+	FREE_SAFE(sd_message);
+	FREE_SAFE(sd_message_reply);
 	sd_bus_close(bus);
 	sd_bus_unref(bus);
 	bus=NULL;
@@ -151,10 +156,10 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
     return SR_ERR_OK;
 
 	cleanup:
-		free(json_response);
+		free(string_reply);
 		free(tail_node);
-		free(m);
-		free(reply);
+		free(sd_message);
+		free(sd_message_reply);
 		sd_bus_close(bus);
 		sd_bus_unref(bus);
 		if (result != NULL) {
@@ -163,152 +168,435 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 
 		return rc;
 }
-static int create_json_response_from_message(sd_bus_message *m, json_object **result_jobj)
-{
-	int error = 0;
-	char type;
-	const char *contents_type;
-	json_object *value_jobj = NULL;
 
-	error = sd_bus_message_peek_type(m, &type, &contents_type);
+static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container) {
+    const char *contents;
+    char type;
+    int error = 0;
+    for (;;) {
+        error = sd_bus_message_peek_type(m, &type, &contents);
+        if (error < 0) {
+            printf("error reading peek type from sd_bus_message");
+            return error;
+        } else if (error == 0) {
+            break;
+        }
 
+        switch (type) {
+            case SD_BUS_TYPE_BYTE: {
+                uint8_t value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-	if (error < 0) {
-		SRP_LOG_ERR("error parsing type %c from sd_bus_message", type);
-		return error;
-	}
+                error = append_uint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
 
-	if (!contents_type) {
-		// contents_type is NULL if type is a basic type
-		union {
-			uint8_t u8;
-			uint16_t u16;
-			int16_t s16;
-			uint32_t u32;
-			int32_t s32;
-			uint64_t u64;
-			int64_t s64;
-			double d64;
-			const char *string;
-			int i;
-		} basic;
+                break;
+            }
 
-		error = sd_bus_message_read_basic(m, type, &basic);
-		switch (type) {
-			case SD_BUS_TYPE_BYTE: {
-				value_jobj = json_object_new_int(basic.u8);
-				break;
-			}
+            case SD_BUS_TYPE_BOOLEAN: {
+                int value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_BOOLEAN: {
-				value_jobj = json_object_new_boolean(basic.u8);
-				break;
-			}
+                error = append_boolean(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_INT16: {
-				value_jobj = json_object_new_int(basic.s16);
-				break;
-			}
+                break;
+            }
 
-			case SD_BUS_TYPE_UINT16: {
-				value_jobj = json_object_new_int(basic.u16);
-				break;
-			}
+            case SD_BUS_TYPE_INT16: {
+                int16_t value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_INT32: {
-				value_jobj = json_object_new_int(basic.s32);
-				break;
-			}
+                error = append_sint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_UINT32: {
-				value_jobj = json_object_new_int((int32_t) basic.u32);
-				break;
-			}
+                break;
+            }
 
-			case SD_BUS_TYPE_INT64: {
-				value_jobj = json_object_new_int64(basic.s64);
-				break;
-			}
+            case SD_BUS_TYPE_UINT16: {
+                uint16_t value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_UINT64: {
-				value_jobj = json_object_new_int64((int64_t) basic.u64);
-				break;
-			}
+                error = append_uint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_DOUBLE: {
-				value_jobj = json_object_new_double(basic.d64);
-				break;
-			}
+                break;
+            }
 
-			case SD_BUS_TYPE_STRING:
-			case SD_BUS_TYPE_OBJECT_PATH:
-			case SD_BUS_TYPE_SIGNATURE: {
-				value_jobj = json_object_new_string(basic.string);
-				break;
-			}
+            case SD_BUS_TYPE_INT32: {
+                int32_t value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_UNIX_FD: {
-				value_jobj = json_object_new_int(basic.i);
-				break;
-			}
+                error = append_sint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
 
-			default: {
-				SRP_LOG_ERR("unexpected element type", NULL);
-				return SR_ERR_UNSUPPORTED;
-			}
-		}
-	} else {
-		// else it is container type
-		error = sd_bus_message_enter_container(m, type, contents_type);
+                break;
+            }
 
-		switch (type) {
-			case SD_BUS_TYPE_VARIANT: {
-				json_object *contents_value = NULL;
-				error = create_json_response_from_message(m, &contents_value);
-				value_jobj = json_object_new_object();
-				json_object_object_add(value_jobj, contents_type, contents_value);
-				break;
-			}
+            case SD_BUS_TYPE_UINT32: {
+                uint32_t value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-			case SD_BUS_TYPE_DICT_ENTRY: {
-				json_object *dict_key_jobj = NULL;
-				json_object *dict_value_jobj = NULL;
-				error = create_json_response_from_message(m, &dict_key_jobj);
-				error |= create_json_response_from_message(m, &dict_value_jobj);
-				value_jobj = json_object_new_object();
-				json_object_object_add(value_jobj, json_object_get_string(dict_key_jobj), dict_value_jobj);
+                error = append_uint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
 
-				json_object_put(dict_key_jobj);
-				break;
-			}
+                break;
+            }
 
-			case SD_BUS_TYPE_ARRAY:
-			case SD_BUS_TYPE_STRUCT: {
-				value_jobj = json_object_new_array();
-				while (!sd_bus_message_at_end(m, 0)) {
-					json_object *element_value = NULL;
-					error = create_json_response_from_message(m, &element_value);
-					json_object_array_add(value_jobj, element_value);
-				}
-				break;
-			}
+            case SD_BUS_TYPE_INT64: {
+                int64_t value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-			default: {
-				SRP_LOG_ERR("unexpected element type", NULL);
-				return -SR_ERR_UNSUPPORTED;
-			}
-		}
+                error = append_sint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
 
-		error = sd_bus_message_exit_container(m);
-	}
+                break;
+            }
 
-	if (error < 0) {
-		SRP_LOG_ERR("error parsing type %c from sd_bus_message", type);
-		return error;
-	}
+            case SD_BUS_TYPE_UINT64: {
+                uint64_t value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
 
-	*result_jobj = value_jobj;
-	return 0;
+                error = append_uint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
+
+                break;
+            }
+
+            case SD_BUS_TYPE_DOUBLE: {
+                double value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
+
+                error = append_double(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
+
+                break;
+            }
+
+            case SD_BUS_TYPE_SIGNATURE:
+            case SD_BUS_TYPE_OBJECT_PATH: {
+                const char *value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
+
+                error = append_value(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
+
+                break;
+            }
+			
+            case SD_BUS_TYPE_STRING: {
+                const char *value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
+
+                error = append_string(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
+
+                break;
+            }
+
+            case SD_BUS_TYPE_UNIX_FD: {
+                int value;
+                error = sd_bus_message_read_basic(m, type, &value);
+                if (error < 0) {
+                    printf("error reading sd_bus_message basic type");
+                    return error;
+                }
+
+                error = append_uint(ret, value);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
+
+                break;
+            }
+
+            case SD_BUS_TYPE_VARIANT: {
+                char *temp = NULL;
+
+                error = sd_bus_message_enter_container(m, type, contents);
+                if (error < 0) {
+                    printf("error entering sd_bus_message container");
+                    return error;
+                }
+
+                error = parse_message_to_string(m, &temp, false);
+                if (error < 0) {
+                    printf("error creating json response message from sd_bus_message response");
+                    free(temp);
+                    return error;
+                }
+
+                error = append_value(ret, contents);
+                if (error < 0) {
+                    printf("error appending value");
+					free(temp);
+                    return error;
+                }
+                error = append_value(ret, temp);
+                free(temp);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
+
+                error = sd_bus_message_exit_container(m);
+                if (error < 0) {
+                    printf("error exiting sd_bus_message container");
+                    return error;
+                }
+
+                break;
+            }
+
+            case SD_BUS_TYPE_DICT_ENTRY:
+            case SD_BUS_TYPE_STRUCT: {
+                char *temp = NULL;
+
+                error = sd_bus_message_enter_container(m, type, contents);
+                if (error < 0) {
+                    printf("error entering sd_bus_message container");
+                    return error;
+                }
+
+                while (true) {
+                    error = sd_bus_message_at_end(m, false);
+                    if (error < 0) {
+                        printf("error checking sd_bus_message end");
+                        return error;
+                    }
+
+                    if (error > 0) {
+                        break;  // end of message
+                    }
+
+                    error = parse_message_to_string(m, &temp, true);
+                    if (error < 0) {
+                        printf("error creating json response message from sd_bus_message response");
+                        return error;
+                    }
+                }
+
+                error = append_value(ret, temp);
+                free(temp);
+                if (error < 0) {
+                    printf("error appending value");
+                    return error;
+                }
+
+                error = sd_bus_message_exit_container(m);
+                if (error < 0) {
+                    printf("error exiting sd_bus_message container");
+                    return error;
+                }
+
+                break;
+            }
+
+            case SD_BUS_TYPE_ARRAY: {
+                char *temp = NULL;
+                int count = 0;
+
+                error = sd_bus_message_enter_container(m, type, contents);
+                if (error < 0) {
+                    printf("error entering sd_bus_message container");
+                    return error;
+                }
+                while (true) {
+                    error = sd_bus_message_at_end(m, false);
+                    if (error < 0) {
+                        printf("error checking sd_bus_message end");
+                        return error;
+                    }
+
+                    if (error > 0) {
+                        break;  // end of message
+                    }
+
+                    error = parse_message_to_string(m, &temp, true);
+                    if (error < 0) {
+                        printf("error creating json response message from sd_bus_message response");
+                        return error;
+                    }
+
+                    count++;
+                }
+
+                error = append_uint(ret, count);
+                if (error < 0) {
+                    printf("error appending value");
+                	free(temp);
+                    return error;
+                }
+
+                if (count != 0) {
+                    error = append_value(ret, temp);
+                	if (error < 0) {
+                    	printf("error appending value");
+                		free(temp);
+                    	return error;
+                	}
+                }
+                free(temp);
+
+                error = sd_bus_message_exit_container(m);
+                if (error < 0) {
+                    printf("error exiting sd_bus_message container");
+                    return error;
+                }
+
+                break;
+            }
+
+            default:
+                printf("unexpected element type");
+                error = -EINVAL;
+                return error;
+        }
+
+        if (called_from_container)
+            break;
+    }
+
+    return 0;
+}
+
+static int append_value(char **ret, const char *value) {
+    if (*ret) {
+        *ret = realloc(*ret, strlen(*ret) + strlen(value) + 2);
+        if (!*ret)
+            return -ENOMEM;
+
+        sprintf(*ret, "%s %s", *ret, value);
+    } else {
+        *ret = realloc(*ret, strlen(value) + 1);
+        if (!*ret) {
+            return -ENOMEM;
+        }
+        sprintf(*ret, "%s", value);
+    }
+    return 0;
+}
+
+static int append_string(char **ret, const char *value) {
+    if (*ret) {
+        *ret = realloc(*ret, strlen(*ret) + strlen(value) + 4);
+        if (!*ret)
+            return -ENOMEM;
+
+        sprintf(*ret, "%s \"%s\"", *ret, value);
+    } else {
+        *ret = realloc(*ret, strlen(value) + 3);
+        if (!*ret) {
+            return -ENOMEM;
+        }
+        sprintf(*ret, "\"%s\"", value);
+    }
+    return 0;
+}
+
+static int append_boolean(char **ret, int value) {
+    char temp[6];
+    value ? sprintf(temp, "%s", "true") : sprintf(temp, "%s", "false");
+
+    return append_value(ret, temp);
+}
+
+static int append_uint(char **ret, uint64_t value) {
+    char temp[21];
+    sprintf(temp, "%lu", value);
+
+    return append_value(ret, temp);
+}
+static int append_sint(char **ret, int64_t value) {
+    char temp[21];
+    sprintf(temp, "%ld", value);
+
+    return append_value(ret, temp);
+}
+
+static int append_double(char **ret, double value) {
+    char temp[128];
+    sprintf(temp, "%g", value);
+
+    return append_value(ret, temp);
 }
 
 static int find_next_argument(char **arguments, char *arg){
