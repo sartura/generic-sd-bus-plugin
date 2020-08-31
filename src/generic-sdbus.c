@@ -625,6 +625,13 @@ static int find_next_argument(char **arguments, char *arg){
 		}
 		*arguments = *arguments + 1;
 	}
+
+	if (beggining != NULL) {
+		end = *arguments;
+		strncpy(arg, beggining, end-beggining);
+		arg[end-beggining] = '\0';
+		return end-beggining;
+	}
 	
 	return 0;
 
@@ -752,9 +759,19 @@ static int append_complete_types_to_message(sd_bus_message *m, const char *signa
   
 				break;
 			}
-			case SD_BUS_TYPE_STRING:
-			case SD_BUS_TYPE_OBJECT_PATH:
-			case SD_BUS_TYPE_SIGNATURE: {
+			case SD_BUS_TYPE_SIGNATURE:
+			case SD_BUS_TYPE_OBJECT_PATH: {
+				error = find_next_argument(arguments, p);
+				error = sd_bus_message_append_basic(m, type, p);
+				if (error < 0) {
+					free(p);
+        			fprintf(stderr, "Failed to append SD_BUS_TYPE_STRING: %s\n", strerror(-error));
+					return error;
+				}
+				
+				break;
+			}
+			case SD_BUS_TYPE_STRING: {
 				error = find_next_argument_string(arguments, p);
 				error = sd_bus_message_append_basic(m, type, p);
 				if (error < 0) {
@@ -778,9 +795,9 @@ static int append_complete_types_to_message(sd_bus_message *m, const char *signa
 					memcpy(contents_type, signature, contents_type_length);
 					contents_type[contents_type_length] = 0; // NULL terminate string
 				}else{
-					contents_type = malloc((strlen(signature) + 1) * sizeof(char));
-					memcpy(contents_type, signature, strlen(signature));
-					contents_type[strlen(signature)] = 0; // NULL terminate string
+					contents_type = malloc(2 * sizeof(char));
+					contents_type[0] = *signature; // NULL terminate string
+					contents_type[1] = 0; // NULL terminate string
 				}
 				
 				error = sd_bus_message_open_container(m, type, contents_type);				
