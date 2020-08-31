@@ -353,6 +353,11 @@ static int find_next_argument_string(char **arguments, char *arg){
 	{
 		if (**arguments == STR_DELIMITER)
 		{
+			if(*(*arguments-1) == '\\'){
+				strcpy((*arguments-1), *arguments);
+				continue;
+			}
+
 			if (beggining == NULL)
 				beggining = *arguments + 1;
 			else{
