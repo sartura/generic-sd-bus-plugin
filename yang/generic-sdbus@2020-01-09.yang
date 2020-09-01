@@ -24,7 +24,7 @@ module generic-sdbus {
           module specified.
           ";
 
-     revision "2020-08-26" {
+     revision "2020-01-09" {
           description "Add ubus object filtering support.";
      }
 
@@ -34,7 +34,7 @@ module generic-sdbus {
                have their YANG module implemented on the system.";
           status current;
           input {
-               list sd-bus-method {
+               list sd-bus-message {
                     key "sd-bus sd-bus-service sd-bus-object-path sd-bus-interface sd-bus-method";
                     
                     leaf sd-bus {
