@@ -50,8 +50,6 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 	for (int i = 0; i < input_cnt; i++) {
 		rc = xpath_get_tail_node(input[i].xpath, &tail_node);
 		CHECK_RET_MSG(rc, cleanup, "get tail node error");
-		printf("XPATH %s\n", input[i].xpath);
-		printf("Rest of tail %s\n", tail_node);
 
 		if (strcmp(RPC_SD_BUS, tail_node) == 0) {
 		sd_bus_bus = input[i].data.string_val;
@@ -150,14 +148,16 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 			count++;
 
 			FREE_SAFE(string_reply);
-			FREE_SAFE(tail_node);
-			FREE_SAFE(sd_message);
-			FREE_SAFE(sd_message_reply);
+			sd_bus_message_unref(sd_message);
+			sd_message=NULL;
+			sd_bus_message_unref(sd_message_reply);
+			sd_message_reply=NULL;
 			sd_bus_close(bus);
 			sd_bus_unref(bus);
 			bus=NULL;
 
 		}
+		FREE_SAFE(tail_node);
 		
 	}
 
@@ -171,8 +171,8 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 	cleanup:
 		free(string_reply);
 		free(tail_node);
-		free(sd_message);
-		free(sd_message_reply);
+		sd_bus_message_unref(sd_message);
+		sd_bus_message_unref(sd_message_reply);
 		sd_bus_close(bus);
 		sd_bus_unref(bus);
 		if (result != NULL) {
@@ -653,6 +653,7 @@ static int find_next_argument(char **arguments, char *arg){
 static int find_next_argument_string(char **arguments, char *arg){
 
 	char *beggining, *end;
+	char last = 0; 
 	
 	beggining = NULL;
 	end = NULL;
@@ -661,7 +662,7 @@ static int find_next_argument_string(char **arguments, char *arg){
 	{
 		if (**arguments == STR_DELIMITER)
 		{
-			if(*(*arguments-1) == '\\'){
+			if(last == '\\'){
 				strcpy((*arguments-1), *arguments);
 				continue;
 			}
@@ -676,6 +677,7 @@ static int find_next_argument_string(char **arguments, char *arg){
 				return end-beggining;
 			}			
 		}
+		last = **arguments;
 		*arguments = *arguments + 1;
 	}
 	
@@ -944,6 +946,8 @@ static int append_complete_types_to_message(sd_bus_message *m, const char *signa
 				break;
 			}
 	}
+
+	free(p);
 
     return 1;
 }

@@ -122,6 +122,7 @@ cleanup_sub:
 	if (ctx->startup_conn != NULL) {
 			sr_disconnect(ctx->startup_conn);
 	}
+	free(ctx);
 	return error;
 }
 
@@ -138,7 +139,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_ctx)
 	INF("%s", __func__);
 	INF("Plugin cleanup called, private_ctx is %s available.", private_ctx ? "" : "not");
 
-	if (NULL != private_ctx) {
+	if (private_ctx != NULL) {
 		sr_ctx_t *ctx = private_ctx;
 		if (ctx->sub != NULL) {
 			sr_unsubscribe(ctx->sub);
@@ -149,6 +150,7 @@ void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_ctx)
 		if (ctx->startup_conn != NULL) {
 			sr_disconnect(ctx->startup_conn);
 		}
+		free(ctx);
 
 	}
 	INF_MSG("Plugin cleaned-up successfully");
