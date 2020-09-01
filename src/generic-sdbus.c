@@ -50,6 +50,8 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 	for (int i = 0; i < input_cnt; i++) {
 		rc = xpath_get_tail_node(input[i].xpath, &tail_node);
 		CHECK_RET_MSG(rc, cleanup, "get tail node error");
+		printf("XPATH %s\n", input[i].xpath);
+		printf("Rest of tail %s\n", tail_node);
 
 		if (strcmp(RPC_SD_BUS, tail_node) == 0) {
 		sd_bus_bus = input[i].data.string_val;
@@ -66,90 +68,100 @@ int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
 		} else if (strcmp(RPC_SD_BUS_ARGUMENTS, tail_node) == 0) {
 		sd_bus_method_arguments = input[i].data.string_val;
 		}
+
+		uint8_t last = (i + 1) >= input_cnt;
+
+		if ((strstr(tail_node, RPC_SD_BUS_ARGUMENTS) != NULL &&
+			 sd_bus_bus != NULL && sd_bus_service != NULL && 
+			 sd_bus_object_path != NULL && sd_bus_interface != NULL && 
+			 sd_bus_method != NULL && sd_bus_method_signature != NULL 
+			 && sd_bus_method_arguments != NULL) || last == 1) {
+		
+			if (strcmp(sd_bus_bus, "SYSTEM") == 0) {
+				rc = sd_bus_open_system(&bus);
+			}else
+			{
+				rc = sd_bus_open_user(&bus);
+			}
+
+			if (rc < 0) {
+				fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-rc));
+				goto cleanup;
+			}
+
+			rc = sd_bus_message_new_method_call(
+				bus, &sd_message, sd_bus_service, sd_bus_object_path,
+				sd_bus_interface, sd_bus_method);
+
+			if (rc < 0) {
+				fprintf(stderr, "Failed to create a new message: %s\n", strerror(-rc));
+				goto cleanup;
+			}
+
+			rc = append_complete_types_to_message(sd_message, sd_bus_method_signature, &sd_bus_method_arguments);
+			
+			if (rc < 0) {
+				fprintf(stderr, "Failed to append: %s\n", strerror(-rc));
+				goto cleanup;
+			}
+
+			rc = sd_bus_call(bus, sd_message,  0, error, &sd_message_reply);
+			if (rc < 0) {
+				fprintf(stderr, "Failed to call: %s\n", strerror(-rc));
+				goto cleanup;
+			}
+
+			sd_bus_reply_signature = sd_bus_message_get_signature(sd_message, 1);
+			if (!sd_bus_reply_signature) {
+				fprintf(stderr, "Failed to get reply message signature");
+				goto cleanup;
+			}
+
+			rc = parse_message_to_string(sd_message_reply, &string_reply, false);
+			if (rc < 0) {
+			fprintf(stderr, "Failed to json: %s\n", strerror(-rc));
+			goto cleanup;
+			}
+			rc = sr_realloc_values(count, count + 3, &result);
+			SR_CHECK_RET(rc, cleanup, "sr realloc values error: %s", sr_strerror(rc));
+
+			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_METHOD_XPATH, sd_bus_method);
+			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
+
+			rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_method);
+			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
+
+			count++;
+
+			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
+			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
+
+			rc = sr_val_set_str_data(&result[count], SR_STRING_T, string_reply);
+			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
+
+			count++;
+
+			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_SIGNATURE_XPATH, sd_bus_method);
+			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
+
+			rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_reply_signature);
+			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
+
+			count++;
+
+			FREE_SAFE(string_reply);
+			FREE_SAFE(tail_node);
+			FREE_SAFE(sd_message);
+			FREE_SAFE(sd_message_reply);
+			sd_bus_close(bus);
+			sd_bus_unref(bus);
+			bus=NULL;
+
+		}
+		
 	}
-    printf("sdbus call rpc:\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n", 
-		   sd_bus_bus, sd_bus_service, sd_bus_object_path, sd_bus_interface, 
-		   sd_bus_method, sd_bus_method_signature, sd_bus_method_arguments);
 
-	if (strcmp(sd_bus_bus, "SYSTEM") == 0) {
-		rc = sd_bus_open_system(&bus);
-	}else
-	{
-		rc = sd_bus_open_user(&bus);
-	}
 
-	if (rc < 0) {
-        fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-rc));
-		goto cleanup;
-	}
-
-	rc = sd_bus_message_new_method_call(
-		bus, &sd_message, sd_bus_service, sd_bus_object_path,
-		sd_bus_interface, sd_bus_method);
-
-	if (rc < 0) {
-        fprintf(stderr, "Failed to create a new message: %s\n", strerror(-rc));
-		goto cleanup;
-	}
-
-	rc = append_complete_types_to_message(sd_message, sd_bus_method_signature, &sd_bus_method_arguments);
-	
-    if (rc < 0) {
-        fprintf(stderr, "Failed to append: %s\n", strerror(-rc));
-        goto cleanup;
-    }
-
-	rc = sd_bus_call(bus, sd_message,  0, error, &sd_message_reply);
-	if (rc < 0) {
-        fprintf(stderr, "Failed to call: %s\n", strerror(-rc));
-		goto cleanup;
-	}
-
-	sd_bus_reply_signature = sd_bus_message_get_signature(sd_message, 1);
-	if (!sd_bus_reply_signature) {
-        fprintf(stderr, "Failed to get reply message signature");
-        goto cleanup;
-    }
-
-    rc = parse_message_to_string(sd_message_reply, &string_reply, false);
-    if (rc < 0) {
-      fprintf(stderr, "Failed to json: %s\n", strerror(-rc));
-      goto cleanup;
-    }
-    rc = sr_realloc_values(count, count + 3, &result);
-    SR_CHECK_RET(rc, cleanup, "sr realloc values error: %s", sr_strerror(rc));
-
-    rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_METHOD_XPATH, sd_bus_method);
-    SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-    rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_method);
-    SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-	count++;
-
-    rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
-    SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-    rc = sr_val_set_str_data(&result[count], SR_STRING_T, string_reply);
-    SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-	count++;
-
-    rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_SIGNATURE_XPATH, sd_bus_method);
-    SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-    rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_reply_signature);
-    SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-	count++;
-
-	FREE_SAFE(string_reply);
-	FREE_SAFE(tail_node);
-	FREE_SAFE(sd_message);
-	FREE_SAFE(sd_message_reply);
-	sd_bus_close(bus);
-	sd_bus_unref(bus);
-	bus=NULL;
 
   	*output_cnt = count;
   	*output = result;
