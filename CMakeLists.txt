@@ -9,9 +9,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 include_directories(${CMAKE_SOURCE_DIR}/src/)
 
 set(SOURCES
-    src/main.c
-    src/xpath.c
     src/generic-sdbus.c
+    src/xpath.c
+    src/transform-sdbus.c
 )
 
 # git SHA1 hash

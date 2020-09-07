@@ -455,7 +455,7 @@ static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_fr
 
                 error = parse_message_to_string(m, &temp, false);
                 if (error < 0) {
-                    printf("error creating json response message from sd_bus_message response");
+                    printf("error creating response message from sd_bus_message response");
                     free(temp);
                     return error;
                 }
@@ -505,7 +505,7 @@ static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_fr
 
                     error = parse_message_to_string(m, &temp, true);
                     if (error < 0) {
-                        printf("error creating json response message from sd_bus_message response");
+                        printf("error creating response message from sd_bus_message response");
                         return error;
                     }
                 }
@@ -548,7 +548,7 @@ static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_fr
 
                     error = parse_message_to_string(m, &temp, true);
                     if (error < 0) {
-                        printf("error creating json response message from sd_bus_message response");
+                        printf("error creating response message from sd_bus_message response");
                         return error;
                     }
 

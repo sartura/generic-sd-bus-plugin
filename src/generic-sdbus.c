@@ -30,955 +30,206 @@
  */
 
 /*=========================Includes===========================================*/
-#include <json-c/json.h>
-#include <generic-sdbus.h>
-#include <errno.h>
-#include <stdlib.h>
+#include <inttypes.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
-#include <systemd/sd-bus.h>
-#include <systemd/sd-bus-protocol.h>
-#include <xpath.h>
 #include <sysrepo.h>
 #include <sysrepo/values.h>
 #include <common.h>
+#include <transform-sdbus.h>
 
-static int find_next_argument(char **arguments, char *arg);
-static int find_next_argument_string(char **arguments, char *arg);
-static const char *find_matching_bracket(const char *str);
-static int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments);
-static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container);
-static int append_value(char **ret, const char *value);
-static int append_string(char **ret, const char *value);
-static int append_boolean(char **ret, int value);
-static int append_sint(char **ret, int64_t value);
-static int append_uint(char **ret, uint64_t value);
-static int append_double(char **ret, double value);
 
-int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
-				       const sr_val_t *input, const size_t input_cnt,
-				       sr_event_t event, uint32_t request_id,
-				       sr_val_t **output, size_t *output_cnt, void *private_data)
+#define YANG_MODEL "generic-sdbus"
+#define SYSREPOCFG_EMPTY_CHECK_COMMAND "sysrepocfg -X -d startup -m " YANG_MODEL
+
+typedef struct sr_ctx_s {
+  const char *yang_model;
+  sr_session_ctx_t *sess;
+  sr_subscription_ctx_t *sub;
+  sr_conn_ctx_t *startup_conn;
+  sr_session_ctx_t *startup_sess;
+} sr_ctx_t;
+
+// static bool sdbus_running_datastore_is_empty_check(void)
+// {
+// 	FILE *sysrepocfg_DS_empty_check = NULL;
+// 	bool is_empty = false;
+
+// 	sysrepocfg_DS_empty_check = popen(SYSREPOCFG_EMPTY_CHECK_COMMAND, "r");
+// 	if (sysrepocfg_DS_empty_check == NULL) {
+// 		SRP_LOG_WRN("could not execute %s", SYSREPOCFG_EMPTY_CHECK_COMMAND);
+// 		is_empty = true;
+// 		goto out;
+// 	}
+
+// 	if (fgetc(sysrepocfg_DS_empty_check) == EOF) {
+// 		is_empty = true;
+// 	}
+
+// out:
+// 	if (sysrepocfg_DS_empty_check) {
+// 		pclose(sysrepocfg_DS_empty_check);
+// 	}
+
+// 	return is_empty;
+// }
+
+int sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
 {
-	int rc = SR_ERR_OK;
-	char *tail_node = NULL;
-	char *sd_bus_bus = NULL;
-	char *sd_bus_service = NULL;
-	char *sd_bus_object_path = NULL;
-	char *sd_bus_interface = NULL;
-	char *sd_bus_method = NULL;
-	char *sd_bus_method_signature = NULL;
-	char *sd_bus_method_arguments = NULL;
-	char *string_reply = NULL;
-	const char *sd_bus_reply_signature = NULL;
-	sr_val_t *result = NULL;
-	size_t count = 0;
-    sd_bus *bus = NULL;
-    sd_bus_message *sd_message = NULL;
-    sd_bus_message *sd_message_reply = NULL;
-    sd_bus_error *error = NULL;
+	INF("%s", __func__);
 
+	int error = 0;
 
-	for (int i = 0; i < input_cnt; i++) {
-		rc = xpath_get_tail_node(input[i].xpath, &tail_node);
-		CHECK_RET_MSG(rc, cleanup, "get tail node error");
+  	sr_ctx_t *ctx = calloc(1, sizeof(*ctx));
+	ctx->sess = session;
+	ctx->startup_conn = NULL;
+  	ctx->startup_sess = NULL;
+  	ctx->yang_model = YANG_MODEL;
 
-		if (strcmp(RPC_SD_BUS, tail_node) == 0) {
-		sd_bus_bus = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_SERVICE, tail_node) == 0) {
-		sd_bus_service = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_OBJPATH, tail_node) == 0) {
-		sd_bus_object_path = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_INTERFACE, tail_node) == 0) {
-		sd_bus_interface = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_METHOD, tail_node) == 0) {
-		sd_bus_method = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_SIGNATURE, tail_node) == 0) {
-		sd_bus_method_signature = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_ARGUMENTS, tail_node) == 0) {
-		sd_bus_method_arguments = input[i].data.string_val;
-		}
+	*private_ctx = ctx;
 
-		uint8_t last = (i + 1) >= input_cnt;
+	// SRP_LOG_INFMSG("start session to startup datastore");
 
-		if ((strstr(tail_node, RPC_SD_BUS_ARGUMENTS) != NULL &&
-			 sd_bus_bus != NULL && sd_bus_service != NULL && 
-			 sd_bus_object_path != NULL && sd_bus_interface != NULL && 
-			 sd_bus_method != NULL && sd_bus_method_signature != NULL 
-			 && sd_bus_method_arguments != NULL) || last == 1) {
-		
-			if (strcmp(sd_bus_bus, "SYSTEM") == 0) {
-				rc = sd_bus_open_system(&bus);
-			}else
-			{
-				rc = sd_bus_open_user(&bus);
-			}
+  	// error = sr_connect(SR_CONN_DEFAULT, &ctx->startup_conn);
+  	// CHECK_RET(error, cleanup, "Error by sr_connect: %s", sr_strerror(error));
 
-			if (rc < 0) {
-				fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-rc));
-				goto cleanup;
-			}
+  	// error = sr_session_start(ctx->startup_conn, SR_DS_STARTUP, &ctx->startup_sess);
+  	// CHECK_RET(error, cleanup, "Error by sr_session_start: %s", sr_strerror(error));
 
-			rc = sd_bus_message_new_method_call(
-				bus, &sd_message, sd_bus_service, sd_bus_object_path,
-				sd_bus_interface, sd_bus_method);
+	// if (sdbus_running_datastore_is_empty_check() == false) {
+	// 	SRP_LOG_INFMSG("startup DS is not empty");
+	// }
 
-			if (rc < 0) {
-				fprintf(stderr, "Failed to create a new message: %s\n", strerror(-rc));
-				goto cleanup;
-			}
+	INF_MSG("Subscribing to sd-bus call rpc");
+	error = sr_rpc_subscribe(session, "/" YANG_MODEL ":sd-bus-call", generic_sdbus_call_rpc_cb, *private_ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->sub);
+	SR_CHECK_RET(error, cleanup_sub, "rpc subscription error: %s", sr_strerror(error));
 
-			rc = append_complete_types_to_message(sd_message, sd_bus_method_signature, &sd_bus_method_arguments);
-			
-			if (rc < 0) {
-				fprintf(stderr, "Failed to append: %s\n", strerror(-rc));
-				goto cleanup;
-			}
+	INF_MSG("Succesfull init");
+	return SR_ERR_OK;
 
-			rc = sd_bus_call(bus, sd_message,  0, error, &sd_message_reply);
-			if (rc < 0) {
-				fprintf(stderr, "Failed to call: %s\n", strerror(-rc));
-				goto cleanup;
-			}
-
-			sd_bus_reply_signature = sd_bus_message_get_signature(sd_message, 1);
-			if (!sd_bus_reply_signature) {
-				fprintf(stderr, "Failed to get reply message signature");
-				goto cleanup;
-			}
-
-			rc = parse_message_to_string(sd_message_reply, &string_reply, false);
-			if (rc < 0) {
-			fprintf(stderr, "Failed to json: %s\n", strerror(-rc));
-			goto cleanup;
-			}
-			rc = sr_realloc_values(count, count + 3, &result);
-			SR_CHECK_RET(rc, cleanup, "sr realloc values error: %s", sr_strerror(rc));
-
-			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_METHOD_XPATH, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-			rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-			count++;
-
-			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-			rc = sr_val_set_str_data(&result[count], SR_STRING_T, string_reply);
-			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-			count++;
-
-			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_SIGNATURE_XPATH, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-			rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_reply_signature);
-			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-			count++;
-
-			FREE_SAFE(string_reply);
-			sd_bus_message_unref(sd_message);
-			sd_message=NULL;
-			sd_bus_message_unref(sd_message_reply);
-			sd_message_reply=NULL;
-			sd_bus_close(bus);
-			sd_bus_unref(bus);
-			bus=NULL;
-
-		}
-		FREE_SAFE(tail_node);
-		
+cleanup:
+	if (ctx->sub != NULL) {
+			sr_unsubscribe(ctx->sub);
 	}
-
-
-
-  	*output_cnt = count;
-  	*output = result;
-
-    return SR_ERR_OK;
-
-	cleanup:
-		free(string_reply);
-		free(tail_node);
-		sd_bus_message_unref(sd_message);
-		sd_bus_message_unref(sd_message_reply);
-		sd_bus_close(bus);
-		sd_bus_unref(bus);
-		if (result != NULL) {
-			sr_free_values(result, count);
+cleanup_sub:
+    if (ctx->startup_sess != NULL) {
+			sr_session_stop(ctx->startup_sess);
 		}
-
-		return rc;
-}
-
-static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container) {
-    const char *contents;
-    char type;
-    int error = 0;
-    for (;;) {
-        error = sd_bus_message_peek_type(m, &type, &contents);
-        if (error < 0) {
-            printf("error reading peek type from sd_bus_message");
-            return error;
-        } else if (error == 0) {
-            break;
-        }
-
-        switch (type) {
-            case SD_BUS_TYPE_BYTE: {
-                uint8_t value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_uint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_BOOLEAN: {
-                int value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_boolean(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_INT16: {
-                int16_t value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_sint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_UINT16: {
-                uint16_t value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_uint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_INT32: {
-                int32_t value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_sint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_UINT32: {
-                uint32_t value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_uint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_INT64: {
-                int64_t value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_sint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_UINT64: {
-                uint64_t value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_uint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_DOUBLE: {
-                double value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_double(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_SIGNATURE:
-            case SD_BUS_TYPE_OBJECT_PATH: {
-                const char *value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_value(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-			
-            case SD_BUS_TYPE_STRING: {
-                const char *value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_string(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_UNIX_FD: {
-                int value;
-                error = sd_bus_message_read_basic(m, type, &value);
-                if (error < 0) {
-                    printf("error reading sd_bus_message basic type");
-                    return error;
-                }
-
-                error = append_uint(ret, value);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_VARIANT: {
-                char *temp = NULL;
-
-                error = sd_bus_message_enter_container(m, type, contents);
-                if (error < 0) {
-                    printf("error entering sd_bus_message container");
-                    return error;
-                }
-
-                error = parse_message_to_string(m, &temp, false);
-                if (error < 0) {
-                    printf("error creating json response message from sd_bus_message response");
-                    free(temp);
-                    return error;
-                }
-
-                error = append_value(ret, contents);
-                if (error < 0) {
-                    printf("error appending value");
-					free(temp);
-                    return error;
-                }
-                error = append_value(ret, temp);
-                free(temp);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                error = sd_bus_message_exit_container(m);
-                if (error < 0) {
-                    printf("error exiting sd_bus_message container");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_DICT_ENTRY:
-            case SD_BUS_TYPE_STRUCT: {
-                char *temp = NULL;
-
-                error = sd_bus_message_enter_container(m, type, contents);
-                if (error < 0) {
-                    printf("error entering sd_bus_message container");
-                    return error;
-                }
-
-                while (true) {
-                    error = sd_bus_message_at_end(m, false);
-                    if (error < 0) {
-                        printf("error checking sd_bus_message end");
-                        return error;
-                    }
-
-                    if (error > 0) {
-                        break;  // end of message
-                    }
-
-                    error = parse_message_to_string(m, &temp, true);
-                    if (error < 0) {
-                        printf("error creating json response message from sd_bus_message response");
-                        return error;
-                    }
-                }
-
-                error = append_value(ret, temp);
-                free(temp);
-                if (error < 0) {
-                    printf("error appending value");
-                    return error;
-                }
-
-                error = sd_bus_message_exit_container(m);
-                if (error < 0) {
-                    printf("error exiting sd_bus_message container");
-                    return error;
-                }
-
-                break;
-            }
-
-            case SD_BUS_TYPE_ARRAY: {
-                char *temp = NULL;
-                int count = 0;
-
-                error = sd_bus_message_enter_container(m, type, contents);
-                if (error < 0) {
-                    printf("error entering sd_bus_message container");
-                    return error;
-                }
-                while (true) {
-                    error = sd_bus_message_at_end(m, false);
-                    if (error < 0) {
-                        printf("error checking sd_bus_message end");
-                        return error;
-                    }
-
-                    if (error > 0) {
-                        break;  // end of message
-                    }
-
-                    error = parse_message_to_string(m, &temp, true);
-                    if (error < 0) {
-                        printf("error creating json response message from sd_bus_message response");
-                        return error;
-                    }
-
-                    count++;
-                }
-
-                error = append_uint(ret, count);
-                if (error < 0) {
-                    printf("error appending value");
-                	free(temp);
-                    return error;
-                }
-
-                if (count != 0) {
-                    error = append_value(ret, temp);
-                	if (error < 0) {
-                    	printf("error appending value");
-                		free(temp);
-                    	return error;
-                	}
-                }
-                free(temp);
-
-                error = sd_bus_message_exit_container(m);
-                if (error < 0) {
-                    printf("error exiting sd_bus_message container");
-                    return error;
-                }
-
-                break;
-            }
-
-            default:
-                printf("unexpected element type");
-                error = -EINVAL;
-                return error;
-        }
-
-        if (called_from_container)
-            break;
-    }
-
-    return 0;
-}
-
-static int append_value(char **ret, const char *value) {
-    if (*ret) {
-        *ret = realloc(*ret, strlen(*ret) + strlen(value) + 2);
-        if (!*ret)
-            return -ENOMEM;
-
-        sprintf(*ret, "%s %s", *ret, value);
-    } else {
-        *ret = realloc(*ret, strlen(value) + 1);
-        if (!*ret) {
-            return -ENOMEM;
-        }
-        sprintf(*ret, "%s", value);
-    }
-    return 0;
-}
-
-static int append_string(char **ret, const char *value) {
-    if (*ret) {
-        *ret = realloc(*ret, strlen(*ret) + strlen(value) + 4);
-        if (!*ret)
-            return -ENOMEM;
-
-        sprintf(*ret, "%s \"%s\"", *ret, value);
-    } else {
-        *ret = realloc(*ret, strlen(value) + 3);
-        if (!*ret) {
-            return -ENOMEM;
-        }
-        sprintf(*ret, "\"%s\"", value);
-    }
-    return 0;
-}
-
-static int append_boolean(char **ret, int value) {
-    char temp[6];
-    value ? sprintf(temp, "%s", "true") : sprintf(temp, "%s", "false");
-
-    return append_value(ret, temp);
-}
-
-static int append_uint(char **ret, uint64_t value) {
-    char temp[21];
-    sprintf(temp, "%lu", value);
-
-    return append_value(ret, temp);
-}
-static int append_sint(char **ret, int64_t value) {
-    char temp[21];
-    sprintf(temp, "%ld", value);
-
-    return append_value(ret, temp);
-}
-
-static int append_double(char **ret, double value) {
-    char temp[128];
-    sprintf(temp, "%g", value);
-
-    return append_value(ret, temp);
-}
-
-static int find_next_argument(char **arguments, char *arg){
-
-	char *beggining, *end;
-	
-	beggining = NULL;
-	end = NULL;
-	
-	
-	if(**arguments != DELIMITER)
-	    beggining = *arguments;
-	
-	while (**arguments != '\0')
-	{
-		if (**arguments == DELIMITER)
-		{
-			if (beggining == NULL)
-				beggining = *arguments + 1;
-			else{
-				end = *arguments;
-				strncpy(arg, beggining, end-beggining);
-				arg[end-beggining] = '\0';
-				return end-beggining;
-			}			
-		}
-		*arguments = *arguments + 1;
+	if (ctx->startup_conn != NULL) {
+			sr_disconnect(ctx->startup_conn);
 	}
-
-	if (beggining != NULL) {
-		end = *arguments;
-		strncpy(arg, beggining, end-beggining);
-		arg[end-beggining] = '\0';
-		return end-beggining;
-	}
-	
-	return 0;
-
+	free(ctx);
+	return error;
 }
 
-static int find_next_argument_string(char **arguments, char *arg){
-
-	char *beggining, *end;
-	char last = 0; 
-	
-	beggining = NULL;
-	end = NULL;
-
-	while (**arguments != '\0')
-	{
-		if (**arguments == STR_DELIMITER)
-		{
-			if(last == '\\'){
-				strcpy((*arguments-1), *arguments);
-				continue;
-			}
-
-			if (beggining == NULL)
-				beggining = *arguments + 1;
-			else{
-				end = *arguments;
-				strncpy(arg, beggining, end-beggining);
-				arg[end-beggining] = '\0';
-		        *arguments = *arguments + 1;
-				return end-beggining;
-			}			
-		}
-		last = **arguments;
-		*arguments = *arguments + 1;
-	}
-	
-	return 0;
-
-}
-static const char *find_matching_bracket(const char *str)
+/*
+ * @brief Cleans the private context passed to the callbacks and unsubscribes
+ * 		  from all subscriptions.
+ *
+ * @param[in] session session context for unsubscribing.
+ * @param[in] private_ctx context to be released fro memory.
+ *
+ */
+void sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_ctx)
 {
-	int bracket_counter = 0;
-	for (char c = *str; c; c = *++str) {
-		if (c == SD_BUS_TYPE_STRUCT_BEGIN || c == SD_BUS_TYPE_DICT_ENTRY_BEGIN) {
-			bracket_counter++;
-			continue;
-		}
+	INF("%s", __func__);
+	INF("Plugin cleanup called, private_ctx is %s available.", private_ctx ? "" : "not");
 
-		if (c == SD_BUS_TYPE_STRUCT_END || c == SD_BUS_TYPE_DICT_ENTRY_END) {
-			if (bracket_counter > 0) {
-				bracket_counter--;
-			} else {
-				return str;
-			}
+	if (private_ctx != NULL) {
+		sr_ctx_t *ctx = private_ctx;
+		if (ctx->sub != NULL) {
+			sr_unsubscribe(ctx->sub);
 		}
+		if (ctx->startup_sess != NULL) {
+			sr_session_stop(ctx->startup_sess);
+		}
+		if (ctx->startup_conn != NULL) {
+			sr_disconnect(ctx->startup_conn);
+		}
+		free(ctx);
+
 	}
-
-	return NULL;
+	INF_MSG("Plugin cleaned-up successfully");
 }
 
-static int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments) {
-	char type;
-	int error;
 
-	char *p = malloc((strlen(*arguments) + 1) * sizeof(char));
+#ifndef PLUGIN
+#include <signal.h>
+#include <unistd.h>
 
-	while ((type = *signature) != '\0') {
-		signature++;
+volatile int exit_application = 0;
 
-		switch (type)
-		{
-			case SD_BUS_TYPE_BYTE: {
-				error = find_next_argument(arguments, p);
-				error = sd_bus_message_append_basic(m, type, &(uint8_t){(uint8_t) atoi(p)});
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_BYTE: %s\n", strerror(-error));
-					return error;
-				}
-						
-				break;
-			}                
-			case SD_BUS_TYPE_BOOLEAN: {
-				error = find_next_argument(arguments, p);
-				error = sd_bus_message_append_basic(m, type, &(uint32_t){(uint32_t) (strcmp(p, "true")==0)});
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_BOOLEAN: %s\n", strerror(-error));
-					return error;
-				}
+static void sigint_handler(__attribute__((unused)) int signum);
 
-				break;
-			}
-			case SD_BUS_TYPE_INT32:
-			case SD_BUS_TYPE_UINT32:
-			case SD_BUS_TYPE_UNIX_FD: {
-				error = find_next_argument(arguments, p);
-				error = sd_bus_message_append_basic(m, type, &(uint32_t){(uint32_t) atoi(p)});
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_INT32: %s\n", strerror(-error));
-					return error;
-				}
+/*
+ * @brief Initializes the connection to sysrepo and initializes the plugin.
+ * 		  When the program is interupted the cleanup code is called.
+ *
+ * @return error code.
+ *
+ */
+int main(void)  
+{
+	int error = SR_ERR_OK;
+	sr_conn_ctx_t *connection = NULL;
+	sr_session_ctx_t *session = NULL;
+	void *private_data = NULL;
 
-				break;
-			}
-			case SD_BUS_TYPE_INT16:
-			case SD_BUS_TYPE_UINT16: {
-				error = find_next_argument(arguments, p);
-				error = sd_bus_message_append_basic(m, type, &(uint16_t){(uint16_t) atoi(p)});
-				if (error < 0) {
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_UINT16: %s\n", strerror(-error));
-					return error;
-				}
+	sr_log_stderr(SR_LL_DBG);
 
-				break;
-			}
-			case SD_BUS_TYPE_INT64:
-			case SD_BUS_TYPE_UINT64: {
-				error = find_next_argument(arguments, p);
-				error = sd_bus_message_append_basic(m, type, &(uint64_t){(uint64_t) atoi(p)});
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_UINT64: %s\n", strerror(-error));
-					return error;
-				}
-  
-				break;
-			}
-			case SD_BUS_TYPE_DOUBLE: {
-				double value;
-				char *eptr;
-				error = find_next_argument(arguments, p);
-
-				value = strtod(p, &eptr);
-				if (value == 0)
-				{
-					if (errno == ERANGE){
-						printf("The value provided was out of range\n");
-						return -EINVAL;
-					}
-				}
-
-				error = sd_bus_message_append_basic(m, type, &value);
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_UINT64: %s\n", strerror(-error));
-					return error;
-				}
-  
-				break;
-			}
-			case SD_BUS_TYPE_SIGNATURE:
-			case SD_BUS_TYPE_OBJECT_PATH: {
-				error = find_next_argument(arguments, p);
-				error = sd_bus_message_append_basic(m, type, p);
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_STRING: %s\n", strerror(-error));
-					return error;
-				}
-				
-				break;
-			}
-			case SD_BUS_TYPE_STRING: {
-				error = find_next_argument_string(arguments, p);
-				error = sd_bus_message_append_basic(m, type, p);
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_STRING: %s\n", strerror(-error));
-					return error;
-				}
-				
-				break;
-			}
-			case SD_BUS_TYPE_ARRAY: {
-				char *contents_type = NULL;
-
-				if (*signature == '(' || *signature == '{'){
-					char container_type = (*signature == SD_BUS_TYPE_STRUCT_BEGIN) ? SD_BUS_TYPE_STRUCT : SD_BUS_TYPE_DICT_ENTRY;
-					size_t contents_type_length = 0;
-
-					// get inner content type
-					contents_type_length = (size_t) find_matching_bracket(signature + 1) - (size_t) signature + 1;
-					contents_type = malloc((contents_type_length + 1) * sizeof(char));
-					memcpy(contents_type, signature, contents_type_length);
-					contents_type[contents_type_length] = 0; // NULL terminate string
-				}else{
-					contents_type = malloc(2 * sizeof(char));
-					contents_type[0] = *signature; // NULL terminate string
-					contents_type[1] = 0; // NULL terminate string
-				}
-				
-				error = sd_bus_message_open_container(m, type, contents_type);				
-				if (error < 0) {
-					free(p);
-					free(contents_type);
-        			fprintf(stderr, "Failed to open container SD_BUS_TYPE_ARRAY: %s %d\n", strerror(-error), -error);
-					return error;
-				}
-				error = find_next_argument(arguments, p);
-				int array_size = atoi(p);
-				// append value(s)
-				for (size_t i = 0; i < array_size; i++) {
-
-					error = append_complete_types_to_message(m, contents_type, arguments);
-					if (error < 0) {
-						free(p);
-						free(contents_type);
-        				fprintf(stderr, "Failed to append SD_BUS_TYPE_ARRAY: %s\n", strerror(-error));
-						return error;
-					}
-				}
-				error = sd_bus_message_close_container(m);
-				if (error < 0) {
-					free(p);
-					free(contents_type);
-        			fprintf(stderr, "Failed to close container SD_BUS_TYPE_ARRAY: %s\n", strerror(-error));
-					return error;
-				}
-				signature += strlen(contents_type); // advance to the end
-				FREE_SAFE(contents_type);
-				break;
-			}
-			case SD_BUS_TYPE_VARIANT: {
-				error = find_next_argument(arguments, p);
-				// open container
-				error = sd_bus_message_open_container(m, type, p);
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to open container SD_BUS_TYPE_VARIANT: %s\n", strerror(-error));
-					return error;
-				}
-				// append value(s)
-				error = append_complete_types_to_message(m, p, arguments);
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_VARIANT: %s\n", strerror(-error));
-					return error;
-				}
-				// close container
-				error = sd_bus_message_close_container(m);
-				if (error < 0) {
-					free(p);
-        			fprintf(stderr, "Failed to close container SD_BUS_TYPE_VARIANT: %s\n", strerror(-error));
-					return error;
-				}
-				break;
-				break;
-			}
-			case SD_BUS_TYPE_STRUCT_BEGIN:
-			case SD_BUS_TYPE_DICT_ENTRY_BEGIN: {
-				char container_type = (type == SD_BUS_TYPE_STRUCT_BEGIN) ? SD_BUS_TYPE_STRUCT : SD_BUS_TYPE_DICT_ENTRY;
-				char *contents_type = NULL;
-				size_t contents_type_length = 0;
-
-				// get inner content type
-				contents_type_length = (size_t) find_matching_bracket(signature) - (size_t) signature;
-				contents_type = malloc((contents_type_length + 1) * sizeof(char));
-				memcpy(contents_type, signature, contents_type_length);
-				contents_type[contents_type_length] = 0; // NULL terminate string
-
-				// open container
-				error = sd_bus_message_open_container(m, container_type, contents_type);
-				if (error < 0) {
-					free(contents_type);
-					free(p);
-        			fprintf(stderr, "Failed to open container SD_BUS_TYPE_STRUCT_BEGIN: %s\n", strerror(-error));
-					return error;
-				}
-				
-				// append value(s)
-				error = append_complete_types_to_message(m, contents_type, arguments);
-				if (error < 0) {
-					free(contents_type);
-					free(p);
-        			fprintf(stderr, "Failed to append SD_BUS_TYPE_STRUCT_BEGIN: %s\n", strerror(-error));
-					return error;
-				}
-				// close container
-				error = sd_bus_message_close_container(m);
-				if (error < 0) {
-					free(contents_type);
-					free(p);
-        			fprintf(stderr, "Failed to close container SD_BUS_TYPE_STRUCT_BEGIN: %s\n", strerror(-error));
-					return error;
-				}
-
-				FREE_SAFE(contents_type);
-				signature += contents_type_length + 1; // advance to the end of structure
-				break;
-			}
-			case SD_BUS_TYPE_STRUCT_END:
-			case SD_BUS_TYPE_DICT_ENTRY_END: {
-				return 0;
-				break;
-			}
-			default:
-				break;
-			}
+	/* connect to sysrepo */
+	error = sr_connect(SR_CONN_DEFAULT, &connection);
+	if (error) {
+		SRP_LOG_ERR("sr_connect error (%d): %s", error, sr_strerror(error));
+		goto out;
 	}
 
-	free(p);
+	error = sr_session_start(connection, SR_DS_RUNNING, &session);
+	if (error) {
+		SRP_LOG_ERR("sr_session_start error (%d): %s", error, sr_strerror(error));
+		goto out;
+	}
 
-    return 1;
+	error = sr_plugin_init_cb(session, &private_data);
+	if (error) {
+	 	SRP_LOG_ERRMSG("dhcp_plugin_init_cb error");
+	 	goto out;
+	}
+
+	/* loop until ctrl-c is pressed / SIGINT is received */
+	signal(SIGINT, sigint_handler);
+	signal(SIGPIPE, SIG_IGN);
+	while (!exit_application) {
+		sleep(1); /* or do some more useful work... */
+	}
+
+	sr_plugin_cleanup_cb(session, private_data);
+
+out:
+  	if (NULL != session) {
+    	error = sr_session_stop(session);
+  	}
+  	if (NULL != connection) {
+    	sr_disconnect(connection);
+  	}
+  	return error;
 }
+
+/*
+ * @brief Termination signal handeling
+ *
+ * @param[in] signum signal identifier.
+ *
+ * @note signum is not used.
+ */
+static void sigint_handler(__attribute__((unused)) int signum)
+{
+	INF_MSG("Sigint called, exiting...");
+	exit_application = 1;
+}
+
+#endif
