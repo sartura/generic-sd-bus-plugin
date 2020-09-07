@@ -30,13 +30,12 @@
  */
 
 /*=========================Includes===========================================*/
-#include <generic-sdbus.h>
+#include <transform-sdbus.h>
 #include <errno.h>
 #include <stdlib.h>
 
 #include <systemd/sd-bus.h>
 #include <systemd/sd-bus-protocol.h>
-#include <xpath.h>
 #include <sysrepo.h>
 #include <sysrepo/values.h>
 #include <common.h>
@@ -44,8 +43,8 @@
 static int find_next_argument(char **arguments, char *arg);
 static int find_next_argument_string(char **arguments, char *arg);
 static const char *find_matching_bracket(const char *str);
-static int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments);
-static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container);
+int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments);
+int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container);
 static int append_value(char **ret, const char *value);
 static int append_string(char **ret, const char *value);
 static int append_boolean(char **ret, int value);
@@ -53,166 +52,7 @@ static int append_sint(char **ret, int64_t value);
 static int append_uint(char **ret, uint64_t value);
 static int append_double(char **ret, double value);
 
-int generic_sdbus_call_rpc_cb(sr_session_ctx_t *session, const char *op_path,
-				       const sr_val_t *input, const size_t input_cnt,
-				       sr_event_t event, uint32_t request_id,
-				       sr_val_t **output, size_t *output_cnt, void *private_data)
-{
-	int rc = SR_ERR_OK;
-	char *tail_node = NULL;
-	char *sd_bus_bus = NULL;
-	char *sd_bus_service = NULL;
-	char *sd_bus_object_path = NULL;
-	char *sd_bus_interface = NULL;
-	char *sd_bus_method = NULL;
-	char *sd_bus_method_signature = NULL;
-	char *sd_bus_method_arguments = NULL;
-	char *string_reply = NULL;
-	const char *sd_bus_reply_signature = NULL;
-	sr_val_t *result = NULL;
-	size_t count = 0;
-    sd_bus *bus = NULL;
-    sd_bus_message *sd_message = NULL;
-    sd_bus_message *sd_message_reply = NULL;
-    sd_bus_error *error = NULL;
-
-
-	for (int i = 0; i < input_cnt; i++) {
-		rc = xpath_get_tail_node(input[i].xpath, &tail_node);
-		CHECK_RET_MSG(rc, cleanup, "get tail node error");
-
-		if (strcmp(RPC_SD_BUS, tail_node) == 0) {
-		sd_bus_bus = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_SERVICE, tail_node) == 0) {
-		sd_bus_service = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_OBJPATH, tail_node) == 0) {
-		sd_bus_object_path = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_INTERFACE, tail_node) == 0) {
-		sd_bus_interface = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_METHOD, tail_node) == 0) {
-		sd_bus_method = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_SIGNATURE, tail_node) == 0) {
-		sd_bus_method_signature = input[i].data.string_val;
-		} else if (strcmp(RPC_SD_BUS_ARGUMENTS, tail_node) == 0) {
-		sd_bus_method_arguments = input[i].data.string_val;
-		}
-
-		uint8_t last = (i + 1) >= input_cnt;
-
-		if ((strstr(tail_node, RPC_SD_BUS_ARGUMENTS) != NULL &&
-			 sd_bus_bus != NULL && sd_bus_service != NULL && 
-			 sd_bus_object_path != NULL && sd_bus_interface != NULL && 
-			 sd_bus_method != NULL && sd_bus_method_signature != NULL 
-			 && sd_bus_method_arguments != NULL) || last == 1) {
-		
-			if (strcmp(sd_bus_bus, "SYSTEM") == 0) {
-				rc = sd_bus_open_system(&bus);
-			}else
-			{
-				rc = sd_bus_open_user(&bus);
-			}
-
-			if (rc < 0) {
-				fprintf(stderr, "Failed to connect to system bus: %s\n", strerror(-rc));
-				goto cleanup;
-			}
-
-			rc = sd_bus_message_new_method_call(
-				bus, &sd_message, sd_bus_service, sd_bus_object_path,
-				sd_bus_interface, sd_bus_method);
-
-			if (rc < 0) {
-				fprintf(stderr, "Failed to create a new message: %s\n", strerror(-rc));
-				goto cleanup;
-			}
-
-			rc = append_complete_types_to_message(sd_message, sd_bus_method_signature, &sd_bus_method_arguments);
-			
-			if (rc < 0) {
-				fprintf(stderr, "Failed to append: %s\n", strerror(-rc));
-				goto cleanup;
-			}
-
-			rc = sd_bus_call(bus, sd_message,  0, error, &sd_message_reply);
-			if (rc < 0) {
-				fprintf(stderr, "Failed to call: %s\n", strerror(-rc));
-				goto cleanup;
-			}
-
-			sd_bus_reply_signature = sd_bus_message_get_signature(sd_message, 1);
-			if (!sd_bus_reply_signature) {
-				fprintf(stderr, "Failed to get reply message signature");
-				goto cleanup;
-			}
-
-			rc = parse_message_to_string(sd_message_reply, &string_reply, false);
-			if (rc < 0) {
-			fprintf(stderr, "Failed to parse message to string: %s\n", strerror(-rc));
-			goto cleanup;
-			}
-			rc = sr_realloc_values(count, count + 3, &result);
-			SR_CHECK_RET(rc, cleanup, "sr realloc values error: %s", sr_strerror(rc));
-
-			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_METHOD_XPATH, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-			rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-			count++;
-
-			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-			rc = sr_val_set_str_data(&result[count], SR_STRING_T, string_reply);
-			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-			count++;
-
-			rc = sr_val_build_xpath(&result[count], RPC_SD_BUS_SIGNATURE_XPATH, sd_bus_method);
-			SR_CHECK_RET(rc, cleanup, "sr value set xpath: %s", sr_strerror(rc));
-
-			rc = sr_val_set_str_data(&result[count], SR_STRING_T, sd_bus_reply_signature);
-			SR_CHECK_RET(rc, cleanup, "sr value set str data: %s", sr_strerror(rc));
-
-			count++;
-
-			FREE_SAFE(string_reply);
-			sd_bus_message_unref(sd_message);
-			sd_message=NULL;
-			sd_bus_message_unref(sd_message_reply);
-			sd_message_reply=NULL;
-			sd_bus_close(bus);
-			sd_bus_unref(bus);
-			bus=NULL;
-
-		}
-		FREE_SAFE(tail_node);
-		
-	}
-
-
-
-  	*output_cnt = count;
-  	*output = result;
-
-    return SR_ERR_OK;
-
-	cleanup:
-		free(string_reply);
-		free(tail_node);
-		sd_bus_message_unref(sd_message);
-		sd_bus_message_unref(sd_message_reply);
-		sd_bus_close(bus);
-		sd_bus_unref(bus);
-		if (result != NULL) {
-			sr_free_values(result, count);
-		}
-
-		return rc;
-}
-
-static int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container) {
+int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container) {
     const char *contents;
     char type;
     int error = 0;
@@ -735,7 +575,7 @@ static const char *find_matching_bracket(const char *str)
 	return NULL;
 }
 
-static int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments) {
+int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments) {
 	char type;
 	int error;
 

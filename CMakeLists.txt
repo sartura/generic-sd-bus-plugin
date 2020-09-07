@@ -10,7 +10,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src/)
 
 set(SOURCES
     src/generic-sdbus.c
-    src/xpath.c
     src/transform-sdbus.c
 )
 
