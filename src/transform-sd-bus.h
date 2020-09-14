@@ -37,23 +37,11 @@
 #include <systemd/sd-bus.h>
 #include <systemd/sd-bus-protocol.h>
 
-#define RPC_SD_BUS "sd-bus"
-#define RPC_SD_BUS_SERVICE "sd-bus-service"
-#define RPC_SD_BUS_OBJPATH "sd-bus-object-path"
-#define RPC_SD_BUS_INTERFACE "sd-bus-interface"
-#define RPC_SD_BUS_METHOD "sd-bus-method"
-#define RPC_SD_BUS_SIGNATURE "sd-bus-method-signature"
-#define RPC_SD_BUS_ARGUMENTS "sd-bus-method-arguments"
-
-#define STR_DELIMITER   '\"'
-#define DELIMITER       ' '
-
-#define RPC_SD_BUS_METHOD_XPATH "/generic-sdbus:sd-bus-call/" "sd-bus-result[sd-bus-method='%s']/sd-bus-method"
-#define RPC_SD_BUS_RESPONSE_XPATH "/generic-sdbus:sd-bus-call/" "sd-bus-result[sd-bus-method='%s']/sd-bus-response"
-#define RPC_SD_BUS_SIGNATURE_XPATH "/generic-sdbus:sd-bus-call/" "sd-bus-result[sd-bus-method='%s']/sd-bus-signature"
-
 int append_complete_types_to_message(sd_bus_message *m, const char *signature, char **arguments);
 int parse_message_to_string(sd_bus_message *m, char **ret, bool called_from_container);
+
+int bus_message_encode(const char *signature, const char *arguments, sd_bus_message *m);
+int bus_message_decode(sd_bus_message *m, char **arguments);
 
 #define FREE_SAFE(x) \
 	do {             \
