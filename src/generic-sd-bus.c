@@ -40,9 +40,10 @@
 #include <sysrepo.h>
 #include <sysrepo/values.h>
 #include <common.h>
-#include <transform-sdbus.h>
+#include <transform-sd-bus.h>
 
-#define YANG_MODEL "generic-sdbus"
+#define YANG_MODEL "generic-sd-bus"
+
 
 #define RPC_SD_BUS "sd-bus"
 #define RPC_SD_BUS_SERVICE "sd-bus-service"
@@ -52,9 +53,12 @@
 #define RPC_SD_BUS_SIGNATURE "sd-bus-method-signature"
 #define RPC_SD_BUS_ARGUMENTS "sd-bus-method-arguments"
 
-#define RPC_SD_BUS_METHOD_XPATH "/generic-sdbus:sd-bus-call/" "sd-bus-result[sd-bus-method='%s']/sd-bus-method"
-#define RPC_SD_BUS_RESPONSE_XPATH "/generic-sdbus:sd-bus-call/" "sd-bus-result[sd-bus-method='%s']/sd-bus-response"
-#define RPC_SD_BUS_SIGNATURE_XPATH "/generic-sdbus:sd-bus-call/" "sd-bus-result[sd-bus-method='%s']/sd-bus-signature"
+#define RPC_SD_BUS_METHOD_XPATH "/generic-sd-bus:sd-bus-call/" \
+								"sd-bus-result[sd-bus-method='%s']/sd-bus-method"
+#define RPC_SD_BUS_RESPONSE_XPATH "/generic-sd-bus:sd-bus-call/" \
+								  "sd-bus-result[sd-bus-method='%s']/sd-bus-response"
+#define RPC_SD_BUS_SIGNATURE_XPATH "/generic-sd-bus:sd-bus-call/" \
+								   "sd-bus-result[sd-bus-method='%s']/sd-bus-signature"
 
 /*
  * @brief Callback for sd-bus call RPC method. Used to invoke an sd-bus call and
@@ -137,7 +141,7 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 					rc = sd_bus_call(bus, sd_message, 0, error, &sd_message_reply);
 					SD_CHECK_RET(rc, cleanup, "failed to call sd-bus method: %s", strerror(-rc));
 
-					sd_bus_reply_signature = sd_bus_message_get_signature(sd_message, 1);
+					sd_bus_reply_signature = sd_bus_message_get_signature(sd_message_reply, 1);
 					CHECK_NULL_MSG(sd_bus_reply_signature, rc, cleanup, "failed get reply message signature");
 
                     rc = bus_message_decode(sd_message_reply, &sd_bus_reply_string);

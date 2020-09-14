@@ -50,7 +50,7 @@ module generic-sd-bus {
           module specified.
           ";
 
-     revision "2020-14-09" {
+     revision "2020-09-14" {
           description "Initial revision.";
      }
 
