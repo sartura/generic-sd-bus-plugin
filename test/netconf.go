@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strconv"
 	"time"
+	"encoding/xml"
+	"os/exec"
 
 	"golang.org/x/crypto/ssh"
 
@@ -39,6 +41,14 @@ type test struct {
 	Setup          []test
 	Teardown       []test
 	Graph          bool
+}
+
+type Result struct {
+	XMLName		xml.Name 		`xml:"sd-bus-result"`
+    XMLNS    	string   		`xml:"xmlns,attr"`
+    Method    	string   		`xml:"sd-bus-method"`
+    Response    string   		`xml:"sd-bus-response"`
+    Signature   string   		`xml:"sd-bus-signature"`
 }
 
 func fillList(replace *[][]interface{}) (*[][]interface{}, error) {
@@ -205,9 +215,15 @@ func parseConfig(configFile string) {
 			if reply == nil {
 				fmt.Printf("ERROR no reply from server\n")
 			} else if cfg.XMLResponse != "" && reply.Data != cfg.XMLResponse {
-				//fmt.Printf("MISMATCH!\nEXPECTED: \n%s\nGOT: \n%s\n", Config.Test[i].XMLResponse, reply.Data)
+				result := Result{}
+				xml.Unmarshal([]byte(cfg.XMLResponse), &result)
+				o, _ := xml.Marshal(result);
+				if string(reply.Data) == string(o) {
+					fmt.Printf("Sucess for test %d\n", i+1)
+				}
+
 			} else {
-				//fmt.Printf("Sucess for test %d\n", i)
+				fmt.Printf("Sucess for test %d\n", i+1)
 			}
 		}
 		finish := time.Now()
@@ -219,10 +235,26 @@ func parseConfig(configFile string) {
 
 func main() {
 
+	cmd := exec.Command("../build/tests/test_service")
+	if cmd == nil {
+		log.Fatal("failed to start test_service, check if tests are built")
+		os.Exit(1)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Fatal("failed to start test_service, check if tests are built: ", err)
+		os.Exit(1)
+	}
+
+	time.Sleep(time.Second)
+
 	dir := "./test-files/"
 
 	files, _ := ioutil.ReadDir(dir)
 	for _, file := range files {
 		parseConfig(dir + file.Name())
+	}
+
+	if err := cmd.Process.Kill(); err != nil {
+		log.Fatal("failed to kill test_service: ", err)
 	}
 }
