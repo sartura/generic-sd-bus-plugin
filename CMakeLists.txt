@@ -72,3 +72,23 @@ include_directories(
     ${JSON-C_INCLUDE_DIR}
     ${SYSTEMD_INCLUDE_DIRS}
 )
+
+if(ENABLE_TESTS)
+
+	add_executable(
+		test_service
+		test/test_service.c
+	)
+
+	target_link_libraries(
+		test_service
+	    ${SYSTEMD_LIBRARIES} ${JSON-C_LIBRARIES}
+	)
+
+	set_target_properties(
+		test_service
+		PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+	)
+
+endif()

@@ -1,0 +1,213 @@
+### Information for opening a SSH session to the device ###
+[login]
+    address = "127.0.0.1:830" #"192.168.1.1:830"
+    username = "root"
+    password = "sartura"
+    enabled = true
+
+# Test1
+[[test]]
+    XMLRequestBody = """
+        <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test1</sd-bus-method>
+            <sd-bus-method-signature>s</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ "str_arg" ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test1</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test2
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test2</sd-bus-method>
+            <sd-bus-method-signature>x</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ 15 ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test2</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test3
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test3</sd-bus-method>
+            <sd-bus-method-signature>d</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ 1.1532 ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test3</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test4
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test4</sd-bus-method>
+            <sd-bus-method-signature>v</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ "au", 1, 14460 ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test4</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test5
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test5</sd-bus-method>
+            <sd-bus-method-signature>a{ss}</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ 2, "str_arg", "str_arg", "str_arg", "str_arg" ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test5</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test6
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test6</sd-bus-method>
+            <sd-bus-method-signature>a(ssso)</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ 2, "str_arg", "str_arg", "str_arg", "/test/test", "str_arg", "str_arg", "str_arg", "/test/test" ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test6</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test7
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test7</sd-bus-method>
+            <sd-bus-method-signature>asssbb</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ 4, "str_arg", "str_arg", "str_arg", "str_arg", "str_arg", "str_arg", true, false ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test7</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test8
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test8</sd-bus-method>
+            <sd-bus-method-signature>sayssusaia(sv)</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ "str_arg", 2, 10, 20, "str_arg", "str_arg", 1000, "str_arg", 3, 1, 2, 3, 3, "str_arg", "s", "str_arg", "str_arg", "u", 1000, "str_arg", "b", true ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test8</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
+
+# Test9
+[[test]]
+    XMLRequestBody = """
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+        <sd-bus-message>
+            <sd-bus>USER</sd-bus>
+            <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
+            <sd-bus-object-path>/net/sysrepo/SDBUSTest</sd-bus-object-path>
+            <sd-bus-interface>net.sysrepo.SDBUSTest</sd-bus-interface>
+            <sd-bus-method>Test9</sd-bus-method>
+            <sd-bus-method-signature>ssa(sv)a(sa(sv))</sd-bus-method-signature>
+            <sd-bus-method-arguments>[ "str_arg", "str_arg", 2, "str_arg", "au", 1, 14460, "str_arg", "s", "str_arg", 2, "str_arg", 3, "str_arg", "y", 1, "str_arg", "u", 2, "str_arg", "x", 3, "str_arg", 0 ]</sd-bus-method-arguments>
+        </sd-bus-message>
+    </sd-bus-call>
+    """
+    XMLResponse = """
+    <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
+            <sd-bus-method>Test9</sd-bus-method>
+            <sd-bus-response>[ 0 ]</sd-bus-response>
+            <sd-bus-signature>x</sd-bus-signature>
+    </sd-bus-result>
+    """
