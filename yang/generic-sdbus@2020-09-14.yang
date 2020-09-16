@@ -38,17 +38,7 @@ module generic-sd-bus {
 
 
      description
-          "The module enables users to define necessary information for the
-          generic sd-bus plugin. The informations for the generic sd-bus plugins
-          are as follows:
-               - mapping between sd-bus service and the YANG module for the
-                 sd-bus service
-               - interfaces (name)
-               - methods (name and arguments) for an sd-bus interface
-
-          Additionaly RPC are defined for sd-bus objects that do not have a YANG
-          module specified.
-          ";
+          "The module defines RPC for sd-bus methods available on the system.";
 
      revision "2020-09-14" {
           description "Initial revision.";
@@ -56,8 +46,7 @@ module generic-sd-bus {
 
      rpc sd-bus-call {
           description
-               "RPC for implementig the sd-bus call for sd-bus service that do not
-               have their YANG module implemented on the system.";
+               "RPC for implementig the sd-bus method call of an sd-bus service.";
           status current;
           input {
                list sd-bus-message {
