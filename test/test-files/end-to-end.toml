@@ -2,13 +2,13 @@
 [login]
     address = "127.0.0.1:830" #"192.168.1.1:830"
     username = "root"
-    password = "sartura"
+    password = "root"
     enabled = true
 
 # Test1
 [[test]]
     XMLRequestBody = """
-        <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
+    <sd-bus-call xmlns="https://terastream/ns/yang/generic-sd-bus">
         <sd-bus-message>
             <sd-bus>USER</sd-bus>
             <sd-bus-service>net.sysrepo.SDBUSTest</sd-bus-service>
@@ -22,9 +22,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test1</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test1</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -45,9 +45,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test2</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test2</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -68,9 +68,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test3</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test3</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -91,9 +91,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test4</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test4</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -114,9 +114,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test5</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test5</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -137,9 +137,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test6</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test6</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -160,9 +160,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test7</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test7</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -183,9 +183,9 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test8</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test8</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
 
@@ -206,8 +206,8 @@
     """
     XMLResponse = """
     <sd-bus-result  xmlns="https://terastream/ns/yang/generic-sd-bus">
-            <sd-bus-method>Test9</sd-bus-method>
-            <sd-bus-response>[ 0 ]</sd-bus-response>
-            <sd-bus-signature>x</sd-bus-signature>
+        <sd-bus-method>Test9</sd-bus-method>
+        <sd-bus-response>[ 0 ]</sd-bus-response>
+        <sd-bus-signature>x</sd-bus-signature>
     </sd-bus-result>
     """
