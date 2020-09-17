@@ -1,6 +1,6 @@
-/*
- * @file generic_ubus.c
- * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Paulic <luka.paulic@sartura.hr>
+/**
+ * @file transform-sd-bus.h
+ * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Kudra <luka.kudra@sartura.hr>
  *
  * @brief Implements tha main logic of the generic ubus plugin.
  *        Main functionalities include:
@@ -31,8 +31,8 @@
 
 /*=========================Includes===========================================*/
 #include <sysrepo.h>
-#ifndef _GENERIC_UBUS_H_
-#define _GENERIC_UBUS_H_
+#ifndef _TRANSFORM_SDBUS_H_
+#define _TRANSFORM_SDBUS_H_
 
 #include <systemd/sd-bus.h>
 #include <systemd/sd-bus-protocol.h>

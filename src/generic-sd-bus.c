@@ -1,5 +1,5 @@
-/*
- * @file generic_ubus.c
+/**
+ * @file generic-sd-bus.c
  * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Paulic <luka.paulic@sartura.hr>
  *
  * @brief Implements tha main logic of the generic ubus plugin.
@@ -31,19 +31,19 @@
 
 /*=========================Includes===========================================*/
 #include <inttypes.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-
 #include <sysrepo.h>
 #include <sysrepo/values.h>
-#include <common.h>
-#include <transform-sd-bus.h>
+#include <systemd/sd-bus.h>
+#include <systemd/sd-bus-protocol.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#include "transform-sd-bus.h"
 
 #define YANG_MODEL "generic-sd-bus"
-
 
 #define RPC_SD_BUS "sd-bus"
 #define RPC_SD_BUS_SERVICE "sd-bus-service"
@@ -96,7 +96,11 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
     struct lyd_node *next = NULL;
     struct lyd_node *ret = NULL;
 
-	CHECK_NULL_MSG(input, rc, cleanup, "input is invalid");
+	if (NULL == input) {
+		rc = SR_ERR_INTERNAL;
+		SRP_LOG_ERRMSG("input is invalid");
+		goto cleanup;
+	}
 
 	LY_TREE_FOR(input->child, child)
 	{
@@ -104,20 +108,21 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 		{
 			if (node->schema) {
 				if (node->schema->nodetype == LYS_LEAF) {
-					if (strcmp(RPC_SD_BUS, node->schema->name) == 0)
+					if (strcmp(RPC_SD_BUS, node->schema->name) == 0) {
 						sd_bus_bus = ((struct lyd_node_leaf_list *) node)->value.enm->name;
-					else if (strcmp(RPC_SD_BUS_SERVICE, node->schema->name) == 0)
+					} else if (strcmp(RPC_SD_BUS_SERVICE, node->schema->name) == 0) {
 						sd_bus_service = ((struct lyd_node_leaf_list *) node)->value.string;
-					else if (strcmp(RPC_SD_BUS_OBJPATH, node->schema->name) == 0)
+					} else if (strcmp(RPC_SD_BUS_OBJPATH, node->schema->name) == 0) {
 						sd_bus_object_path = ((struct lyd_node_leaf_list *) node)->value.string;
-					else if (strcmp(RPC_SD_BUS_INTERFACE, node->schema->name) == 0)
+					} else if (strcmp(RPC_SD_BUS_INTERFACE, node->schema->name) == 0) {
 						sd_bus_interface = ((struct lyd_node_leaf_list *) node)->value.string;
-					else if (strcmp(RPC_SD_BUS_METHOD, node->schema->name) == 0)
+					} else if (strcmp(RPC_SD_BUS_METHOD, node->schema->name) == 0) {
 						sd_bus_method = ((struct lyd_node_leaf_list *) node)->value.string;
-					else if (strcmp(RPC_SD_BUS_SIGNATURE, node->schema->name) == 0)
+					} else if (strcmp(RPC_SD_BUS_SIGNATURE, node->schema->name) == 0) {
 						sd_bus_method_signature = ((struct lyd_node_leaf_list *) node)->value.string;
-					else if (strcmp(RPC_SD_BUS_ARGUMENTS, node->schema->name) == 0)
+					} else if (strcmp(RPC_SD_BUS_ARGUMENTS, node->schema->name) == 0) {
 						sd_bus_method_arguments = ((struct lyd_node_leaf_list *) node)->value.string;
+					}
 				}
 				if ((node->schema->nodetype == LYS_LIST || !child->next) &&
 					sd_bus_bus != NULL && sd_bus_service != NULL &&
@@ -128,39 +133,70 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
                         rc = sd_bus_open_system(&bus);
                 	else
                         rc = sd_bus_open_user(&bus);
-					SD_CHECK_RET(rc, cleanup, "failed to connect to system bus: %s", strerror(-rc));
+					if (rc < SR_ERR_OK) {
+						SRP_LOG_ERR("failed to connect to system bus: %s", strerror(-rc));
+						goto cleanup;
+					}
 
 					rc = sd_bus_message_new_method_call(
 						bus, &sd_message, sd_bus_service, sd_bus_object_path,
 						sd_bus_interface, sd_bus_method);
-					SD_CHECK_RET(rc, cleanup, "failed to create a new message: %s", strerror(-rc));
+					if (rc < SR_ERR_OK) {
+						SRP_LOG_ERR("failed to create a new message: %s", strerror(-rc));
+						goto cleanup;
+					}
 
                     rc = bus_message_encode(sd_bus_method_signature, sd_bus_method_arguments, sd_message);
-					SD_CHECK_RET(rc, cleanup, "failed to append sd-bus method arguments: %s", strerror(-rc));
+					if (rc < SR_ERR_OK) {
+						SRP_LOG_ERR("failed to append sd-bus method arguments: %s", strerror(-rc));
+						goto cleanup;
+					}
 
 					rc = sd_bus_call(bus, sd_message, 0, error, &sd_message_reply);
-					SD_CHECK_RET(rc, cleanup, "failed to call sd-bus method: %s", strerror(-rc));
+					if (rc < SR_ERR_OK) {
+						SRP_LOG_ERR("failed to call sd-bus method: %s", strerror(-rc));
+						goto cleanup;
+					}
 
 					sd_bus_reply_signature = sd_bus_message_get_signature(sd_message_reply, 1);
-					CHECK_NULL_MSG(sd_bus_reply_signature, rc, cleanup, "failed get reply message signature");
+					if (NULL == sd_bus_reply_signature) {
+						rc = SR_ERR_INTERNAL;
+						SRP_LOG_ERRMSG("failed get reply message signature");
+						goto cleanup;
+					}
 
                     rc = bus_message_decode(sd_message_reply, &sd_bus_reply_string);
-					SD_CHECK_RET(rc, cleanup, "failed to parse reply: %s", strerror(-rc));
+					if (rc < SR_ERR_OK) {
+						SRP_LOG_ERR("failed to parse reply: %s", strerror(-rc));
+						goto cleanup;
+					}
 
 					xpath = realloc(xpath, strlen(RPC_SD_BUS_METHOD_XPATH) + strlen(sd_bus_method) + 1);
 					sprintf(xpath, RPC_SD_BUS_METHOD_XPATH, sd_bus_method);
 					ret = lyd_new_path(output, NULL, xpath, (void *) sd_bus_method, LYD_ANYDATA_STRING, LYD_PATH_OPT_OUTPUT);
-					CHECK_NULL_MSG(ret, rc, cleanup, "failed to set output");
+					if (NULL == ret) {
+						rc = SR_ERR_INTERNAL;
+						SRP_LOG_ERRMSG("failed to set output");
+						goto cleanup;
+					}
 
 					xpath = realloc(xpath, strlen(RPC_SD_BUS_RESPONSE_XPATH) + strlen(sd_bus_method) + 1);
 					sprintf(xpath, RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
                     ret = lyd_new_path(output, NULL, xpath, (void *) sd_message_reply, LYD_ANYDATA_STRING, LYD_PATH_OPT_OUTPUT);
-					CHECK_NULL_MSG(ret, rc, cleanup, "failed to set output");
+					if (NULL == ret) {
+						rc = SR_ERR_INTERNAL;
+						SRP_LOG_ERRMSG("failed to set output");
+						goto cleanup;
+					}
 
 					xpath = realloc(xpath, strlen(RPC_SD_BUS_SIGNATURE_XPATH) + strlen(sd_bus_method) + 1);
 					sprintf(xpath, RPC_SD_BUS_SIGNATURE_XPATH, sd_bus_method);
 					ret = lyd_new_path(output, NULL, xpath, (void *) sd_bus_reply_signature, LYD_ANYDATA_STRING, LYD_PATH_OPT_OUTPUT);
-					CHECK_NULL_MSG(ret, rc, cleanup, "failed to set output");
+					if (NULL == ret) {
+						rc = SR_ERR_INTERNAL;
+						SRP_LOG_ERRMSG("failed to set output");
+						goto cleanup;
+					}
 
 					sd_bus_bus = NULL;
 					sd_bus_service = NULL;
@@ -203,15 +239,18 @@ cleanup:
  */
 int sr_plugin_init_cb(sr_session_ctx_t *session, sr_subscription_ctx_t **subscription)
 {
-	INF("%s", __func__);
+	SRP_LOG_INF("%s", __func__);
 
 	int error = 0;
 
-	INF_MSG("Subscribing to sd-bus call rpc");
+	SRP_LOG_INFMSG("Subscribing to sd-bus call rpc");
 	error = sr_rpc_subscribe_tree(session, "/" YANG_MODEL ":sd-bus-call", generic_sdbus_call_rpc_tree_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, subscription);
-	SR_CHECK_RET(error, cleanup, "rpc subscription error: %s", sr_strerror(error));
+	if (SR_ERR_OK != error) {
+		SRP_LOG_ERR("rpc subscription error: %s", sr_strerror(error));
+		goto cleanup;
+	}
 
-	INF_MSG("Succesfull init");
+	SRP_LOG_INFMSG("Succesfull init");
 	return SR_ERR_OK;
 
 cleanup:
@@ -232,7 +271,7 @@ cleanup:
  */
 void sr_plugin_cleanup_cb(sr_conn_ctx_t *connection, sr_session_ctx_t *session, sr_subscription_ctx_t *subscription)
 {
-	INF("%s", __func__);
+	SRP_LOG_INF("%s", __func__);
 	if (subscription != NULL) {
 		sr_unsubscribe(subscription);
 	}
@@ -242,7 +281,7 @@ void sr_plugin_cleanup_cb(sr_conn_ctx_t *connection, sr_session_ctx_t *session, 
 	if (connection != NULL) {
 		sr_disconnect(connection);
 	}
-	INF_MSG("Plugin cleaned-up successfully");
+	SRP_LOG_INFMSG("Plugin cleaned-up successfully");
 }
 
 #ifndef PLUGIN
@@ -309,7 +348,7 @@ out:
  */
 static void sigint_handler(__attribute__((unused)) int signum)
 {
-	INF_MSG("Sigint called, exiting...");
+	SRP_LOG_INFMSG("Sigint called, exiting...");
 	exit_application = 1;
 }
 

@@ -78,12 +78,17 @@ if(ENABLE_TESTS)
 	add_executable(
 		test_service
 		test/test_service.c
+        src/transform-sd-bus.c
 	)
 
 	target_link_libraries(
 		test_service
-	    ${SYSTEMD_LIBRARIES} ${JSON-C_LIBRARIES}
+	    ${SYSTEMD_LIBRARIES}
 	)
+
+    include_directories(
+        ${PROJECT_SOURCE_DIR}
+    )
 
 	set_target_properties(
 		test_service

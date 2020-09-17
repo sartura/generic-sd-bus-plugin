@@ -1,6 +1,6 @@
-/*
- * @file generic_ubus.c
- * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Paulic <luka.paulic@sartura.hr>
+/**
+ * @file transform-sd-bus.c
+ * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Kudra <luka.kudra@sartura.hr>
  *
  * @brief Implements tha main logic of the generic ubus plugin.
  *        Main functionalities include:
@@ -32,13 +32,12 @@
 /*=========================Includes===========================================*/
 #include <errno.h>
 #include <stdlib.h>
-#include <transform-sd-bus.h>
-
-#include <common.h>
 #include <sysrepo.h>
 #include <sysrepo/values.h>
 #include <systemd/sd-bus-protocol.h>
 #include <systemd/sd-bus.h>
+
+#include "transform-sd-bus.h"
 
 // bus argument iterator structure
 typedef struct bus_argument_iterator_s {
