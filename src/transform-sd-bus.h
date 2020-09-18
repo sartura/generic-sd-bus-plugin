@@ -2,15 +2,7 @@
  * @file transform-sd-bus.h
  * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Kudra <luka.kudra@sartura.hr>
  *
- * @brief Implements tha main logic of the generic ubus plugin.
- *        Main functionalities include:
- *          + loading and syncing the startup data store withe the
- *            running data store
- *          + handeling creating, modifying, deleting the ubus object and
- *            ubus method structures according to the configurational data
- *            changes
- *          + retreiving the YANG module state data for a ubus object
- *            that is being monitored
+ * @brief Lists the functions for sd-bus message parsing
  *
  * @copyright
  * Copyright (C) 2020 Deutsche Telekom AG.
@@ -49,4 +41,4 @@ int bus_message_decode(sd_bus_message *m, char **arguments);
 		(x) = NULL;  \
 	} while (0)
 
-#endif //_GENERIC_UBUS_H_
+#endif //_TRANSFORM_SDBUS_H_

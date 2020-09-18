@@ -2,15 +2,7 @@
  * @file test_service.c
  * @authors Borna Blazevic <borna.blazevic@sartura.hr>
  *
- * @brief Implements tha main logic of the generic ubus plugin.
- *        Main functionalities include:
- *          + loading and syncing the startup data store withe the
- *            running data store
- *          + handeling creating, modifying, deleting the ubus object and
- *            ubus method structures according to the configurational data
- *            changes
- *          + retreiving the YANG module state data for a ubus object
- *            that is being monitored
+ * @brief Implements the service needed for testing the sd-bus plugin
  *
  * @copyright
  * Copyright (C) 2020 Deutsche Telekom AG.

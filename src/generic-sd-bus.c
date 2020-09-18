@@ -2,15 +2,9 @@
  * @file generic-sd-bus.c
  * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Paulic <luka.paulic@sartura.hr>
  *
- * @brief Implements tha main logic of the generic ubus plugin.
+ * @brief Implements tha main logic of the generic sd-bus plugin.
  *        Main functionalities include:
- *          + loading and syncing the startup data store withe the
- *            running data store
- *          + handeling creating, modifying, deleting the ubus object and
- *            ubus method structures according to the configurational data
- *            changes
- *          + retreiving the YANG module state data for a ubus object
- *            that is being monitored
+ *          + enables RPC for implementig the sd-bus method call of an sd-bus service.
  *
  * @copyright
  * Copyright (C) 2020 Deutsche Telekom AG.
