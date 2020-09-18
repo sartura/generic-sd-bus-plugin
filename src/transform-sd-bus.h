@@ -24,6 +24,7 @@
 /*=========================Includes===========================================*/
 #ifndef _TRANSFORM_SDBUS_H_
 #define _TRANSFORM_SDBUS_H_
+#include <stdbool.h>
 
 #include <systemd/sd-bus.h>
 #include <systemd/sd-bus-protocol.h>
