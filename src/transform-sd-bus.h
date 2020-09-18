@@ -22,7 +22,6 @@
  */
 
 /*=========================Includes===========================================*/
-#include <sysrepo.h>
 #ifndef _TRANSFORM_SDBUS_H_
 #define _TRANSFORM_SDBUS_H_
 

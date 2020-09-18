@@ -25,15 +25,16 @@
 
 /*=========================Includes===========================================*/
 #include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
 #include <sys/stat.h>
 #include <sys/wait.h>
+
 #include <sysrepo.h>
-#include <sysrepo/values.h>
 #include <systemd/sd-bus.h>
 #include <systemd/sd-bus-protocol.h>
-#include <string.h>
-#include <stdio.h>
-#include <unistd.h>
 
 #include "transform-sd-bus.h"
 
@@ -72,23 +73,23 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 {
 	int rc = SR_ERR_OK;
 	char *xpath = NULL;
-    const char *sd_bus_bus = NULL;
-    const char *sd_bus_service = NULL;
-    const char *sd_bus_object_path = NULL;
-    const char *sd_bus_interface = NULL;
-    const char *sd_bus_method = NULL;
-    const char *sd_bus_method_signature = NULL;
-    const char *sd_bus_method_arguments = NULL;
-    char *sd_bus_reply_string = NULL;
-    const char *sd_bus_reply_signature = NULL;
-    sd_bus *bus = NULL;
-    sd_bus_message *sd_message = NULL;
-    sd_bus_message *sd_message_reply = NULL;
-    sd_bus_error *error = NULL;
-    struct lyd_node *node = NULL;
-    struct lyd_node *child = NULL;
-    struct lyd_node *next = NULL;
-    struct lyd_node *ret = NULL;
+	const char *sd_bus_bus = NULL;
+	const char *sd_bus_service = NULL;
+	const char *sd_bus_object_path = NULL;
+	const char *sd_bus_interface = NULL;
+	const char *sd_bus_method = NULL;
+	const char *sd_bus_method_signature = NULL;
+	const char *sd_bus_method_arguments = NULL;
+	char *sd_bus_reply_string = NULL;
+	const char *sd_bus_reply_signature = NULL;
+	sd_bus *bus = NULL;
+	sd_bus_message *sd_message = NULL;
+	sd_bus_message *sd_message_reply = NULL;
+	sd_bus_error *error = NULL;
+	struct lyd_node *node = NULL;
+	struct lyd_node *child = NULL;
+	struct lyd_node *next = NULL;
+	struct lyd_node *ret = NULL;
 
 	if (NULL == input) {
 		rc = SR_ERR_INTERNAL;
@@ -122,10 +123,10 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 					sd_bus_bus != NULL && sd_bus_service != NULL &&
 					sd_bus_object_path != NULL && sd_bus_interface != NULL &&
 					sd_bus_method != NULL && sd_bus_method_signature != NULL && sd_bus_method_arguments != NULL) {
-                    if (strcmp(sd_bus_bus, "SYSTEM") == 0)
-                        rc = sd_bus_open_system(&bus);
-                	else
-                        rc = sd_bus_open_user(&bus);
+					if (strcmp(sd_bus_bus, "SYSTEM") == 0)
+						rc = sd_bus_open_system(&bus);
+					else
+						rc = sd_bus_open_user(&bus);
 					if (rc < SR_ERR_OK) {
 						SRP_LOG_ERR("failed to connect to system bus: %s", strerror(-rc));
 						goto cleanup;
@@ -139,7 +140,7 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 						goto cleanup;
 					}
 
-                    rc = bus_message_encode(sd_bus_method_signature, sd_bus_method_arguments, sd_message);
+					rc = bus_message_encode(sd_bus_method_signature, sd_bus_method_arguments, sd_message);
 					if (rc < SR_ERR_OK) {
 						SRP_LOG_ERR("failed to parse reply: %s", strerror(-rc));
 						goto cleanup;
@@ -158,7 +159,7 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 						goto cleanup;
 					}
 
-                    rc = bus_message_decode(sd_message_reply, &sd_bus_reply_string);
+					rc = bus_message_decode(sd_message_reply, &sd_bus_reply_string);
 					if (rc < SR_ERR_OK) {
 						SRP_LOG_ERR("failed to parse reply: %s", strerror(-rc));
 						goto cleanup;
@@ -175,7 +176,7 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 
 					xpath = realloc(xpath, strlen(RPC_SD_BUS_RESPONSE_XPATH) + strlen(sd_bus_method) + 1);
 					sprintf(xpath, RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
-                    ret = lyd_new_path(output, NULL, xpath, (void *) sd_bus_reply_string, LYD_ANYDATA_STRING, LYD_PATH_OPT_OUTPUT);
+					ret = lyd_new_path(output, NULL, xpath, (void *) sd_bus_reply_string, LYD_ANYDATA_STRING, LYD_PATH_OPT_OUTPUT);
 					if (NULL == ret) {
 						rc = SR_ERR_INTERNAL;
 						SRP_LOG_ERRMSG("failed to set output");
@@ -201,29 +202,29 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 
 					free(sd_bus_reply_string);
 					sd_bus_reply_string = NULL;
-        			sd_bus_error_free(error);
+					sd_bus_error_free(error);
 					sd_message = sd_bus_message_unref(sd_message);
 					sd_message_reply = sd_bus_message_unref(sd_message_reply);
 					bus = sd_bus_close_unref(bus);
-                }
-            }
+				}
+			}
 
 			LY_TREE_DFS_END(child, next, node)
 		};
 	};
 cleanup:
-    free(xpath);
-    sd_bus_message_unref(sd_message);
+	free(xpath);
+	sd_bus_message_unref(sd_message);
 	sd_message_reply = sd_bus_message_unref(sd_message_reply);
-    sd_bus_error_free(error);
-    sd_bus_close_unref(bus);
+	sd_bus_error_free(error);
+	sd_bus_close_unref(bus);
 	free(sd_bus_reply_string);
 
-    return rc;
+	return rc;
 }
 
 /*
- * @brief Callback for initializing the plugin. 
+ * @brief Callback for initializing the plugin.
  * 		  Subscribes to generic sd-bus call.
  *
  * @param[in] session session context used for subscribiscions.
