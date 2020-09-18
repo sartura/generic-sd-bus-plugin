@@ -9,7 +9,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 include_directories(${CMAKE_SOURCE_DIR}/src/)
 
 set(SOURCES
-    src/main.c
+    src/generic-sd-bus.c
+    src/transform-sd-bus.c
 )
 
 # git SHA1 hash
@@ -54,20 +55,42 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 find_package(LibYANG REQUIRED)
 find_package(SYSREPO REQUIRED)
 find_package(LIBSYSTEMD REQUIRED)
-find_package(JSON-C REQUIRED)
 
 
 target_link_libraries(
     ${PROJECT_NAME}
     ${LIBYANG_LIBRARIES}
     ${SYSREPO_LIBRARIES}
-    ${JSON-C_LIBRARIES}
     ${SYSTEMD_LIBRARIES}
 )
 
 include_directories(
     ${LIBYANG_INCLUDE_DIRS}
     ${SYSREPO_INCLUDE_DIRS}
-    ${JSON-C_INCLUDE_DIR}
     ${SYSTEMD_INCLUDE_DIRS}
 )
+
+if(ENABLE_TESTS)
+
+	add_executable(
+		test_service
+		test/test_service.c
+        src/transform-sd-bus.c
+	)
+
+	target_link_libraries(
+		test_service
+	    ${SYSTEMD_LIBRARIES}
+	)
+
+    include_directories(
+        ${PROJECT_SOURCE_DIR}
+    )
+
+	set_target_properties(
+		test_service
+		PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+	)
+
+endif()

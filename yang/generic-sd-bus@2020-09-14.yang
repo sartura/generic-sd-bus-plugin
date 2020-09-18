@@ -1,16 +1,10 @@
 /*
- * @file generic_ubus.c
+ * @file generic-sd-bus.c
  * @authors Borna Blazevic <borna.blazevic@sartura.hr>
  *
- * @brief Implements tha main logic of the generic ubus plugin.
+ * @brief Implements tha main logic of the generic sd-bus plugin.
  *        Main functionalities include:
- *          + loading and syncing the startup data store withe the
- *            running data store
- *          + handeling creating, modifying, deleting the ubus object and
- *            ubus method structures according to the configurational data
- *            changes
- *          + retreiving the YANG module state data for a ubus object
- *            that is being monitored
+ *          + calling any available sd-bus method, and returning its response
  *
  * @copyright
  * Copyright (C) 2020 Deutsche Telekom AG.
@@ -30,9 +24,9 @@
  */
 
 /*=========================Includes===========================================*/
-module generic-sdbus {
+module generic-sd-bus {
      yang-version 1.1;
-     namespace "https://terastream/ns/yang/generic-sdbus";
+     namespace "https://terastream/ns/yang/generic-sd-bus";
      prefix "ts-gsb";
 
      organization
@@ -44,29 +38,18 @@ module generic-sdbus {
 
 
      description
-          "The module enables users to define necessary information for the
-          generic sd-bus plugin. The informations for the generic ubus plugins
-          are as follows:
-               - mapping between sd-bus service and the YANG module for the
-                 sd-bus service
-               - interfaces (name)
-               - methods (name and arguments) for an sd-bus interface
+          "The module defines RPC for sd-bus methods available on the system.";
 
-          Additionaly RPC are defined for ubus objects that do not have a YANG
-          module specified.
-          ";
-
-     revision "2020-08-26" {
-          description "Add ubus object filtering support.";
+     revision "2020-09-14" {
+          description "Initial revision.";
      }
 
      rpc sd-bus-call {
           description
-               "RPC for implementig the sd-bus call for sd-bus service that do not
-               have their YANG module implemented on the system.";
+               "RPC for implementig the sd-bus method call of an sd-bus service.";
           status current;
           input {
-               list sd-bus-method {
+               list sd-bus-message {
                     key "sd-bus sd-bus-service sd-bus-object-path sd-bus-interface sd-bus-method";
                     
                     leaf sd-bus {
@@ -122,8 +105,8 @@ module generic-sdbus {
                     key sd-bus-method;
                     leaf sd-bus-method {
                          description
-                              "sd-bus object, ubus method and message that was
-                              invoked to produce this result";
+                              "sd-bus object, sd-bus method and message that was
+                              called to produce this result";
                          type string;
                     }
                     leaf sd-bus-response {
