@@ -1,6 +1,6 @@
-/**
- * @file transform-sd-bus.c
- * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Kudra <luka.kudra@sartura.hr>
+/*
+ * @file generic_ubus.c
+ * @authors Borna Blazevic <borna.blazevic@sartura.hr> Luka Paulic <luka.paulic@sartura.hr>
  *
  * @brief Implements tha main logic of the generic ubus plugin.
  *        Main functionalities include:
@@ -31,6 +31,7 @@
 
 /*=========================Includes===========================================*/
 #include <errno.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sysrepo.h>
 #include <sysrepo/values.h>
@@ -521,8 +522,9 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
     const char *argument_string = NULL;
     int argument_fd = 0;
     char *arguments_tmp = NULL;
-    static int count = 0;
+    int count = 0;
     static bool is_array_loop = false;
+    bool temp;
 
     while (sd_bus_message_peek_type(m, &type, &contents) > 0) {
         switch (type) {
@@ -544,7 +546,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_BOOLEAN:
             error = sd_bus_message_read_basic(m, type, &argument_boolean);
@@ -564,7 +566,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_INT16:
             error = sd_bus_message_read_basic(m, type, &argument_int16);
@@ -584,7 +586,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_UINT16:
             error = sd_bus_message_read_basic(m, type, &argument_uint16);
@@ -604,7 +606,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_INT32:
             error = sd_bus_message_read_basic(m, type, &argument_int32);
@@ -624,7 +626,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_UINT32:
             error = sd_bus_message_read_basic(m, type, &argument_uint32);
@@ -644,7 +646,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_INT64:
             error = sd_bus_message_read_basic(m, type, &argument_int64);
@@ -664,7 +666,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_UINT64:
             error = sd_bus_message_read_basic(m, type, &argument_uint64);
@@ -684,7 +686,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_DOUBLE:
             error = sd_bus_message_read_basic(m, type, &argument_double);
@@ -704,7 +706,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_STRING:
         case SD_BUS_TYPE_OBJECT_PATH:
@@ -717,7 +719,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             if (error < 0)
                 goto error_out;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_UNIX_FD:
             error = sd_bus_message_read_basic(m, type, &argument_fd);
@@ -737,23 +739,26 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             free(string_representation_of_argument);
             string_representation_of_argument = NULL;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_VARIANT:
             error = sd_bus_message_enter_container(m, type, contents);
             if (error < 0)
                 goto error_out;
 
-            error = append_argument(true, contents, arguments);
+            error = append_argument(false, contents, arguments);
             if (error < 0)
                 goto error_out;
 
             free(arguments_tmp);
             arguments_tmp = NULL;
 
+            temp = is_array_loop;
+            is_array_loop = false;
             error = bus_message_decode(m, &arguments_tmp);
             if (error < 0)
                 goto error_out;
+            is_array_loop = temp;
 
             error = append_argument(false, arguments_tmp, arguments);
             if (error < 0)
@@ -763,7 +768,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             if (error < 0)
                 goto error_out;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_ARRAY:
             count = 0;
@@ -808,7 +813,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             if (error < 0)
                 goto error_out;
 
-				break;
+            break;
 
         case SD_BUS_TYPE_DICT_ENTRY:
         case SD_BUS_TYPE_STRUCT:
@@ -820,9 +825,12 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             arguments_tmp = NULL;
 
             while (sd_bus_message_at_end(m, false) == 0) {
+                temp = is_array_loop;
+                is_array_loop = false;
                 error = bus_message_decode(m, &arguments_tmp);
                 if (error < 0)
                     goto error_out;
+                is_array_loop = temp;
             }
 
             error = append_argument(false, arguments_tmp, arguments);
@@ -833,7 +841,7 @@ int bus_message_decode(sd_bus_message *m, char **arguments) {
             if (error < 0)
                 goto error_out;
 
-				break;
+            break;
 
         default:
             error = -EINVAL;
@@ -892,5 +900,5 @@ static int append_argument(bool is_argument_a_string, const char *argument_to_ap
         }
     }
 
-	return 0;
+    return 0;
 }

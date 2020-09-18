@@ -86,7 +86,7 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
     const char *sd_bus_method_signature = NULL;
     const char *sd_bus_method_arguments = NULL;
     char *sd_bus_reply_string = NULL;
-    char *sd_bus_reply_signature = NULL;
+    const char *sd_bus_reply_signature = NULL;
     sd_bus *bus = NULL;
     sd_bus_message *sd_message = NULL;
     sd_bus_message *sd_message_reply = NULL;
@@ -128,7 +128,6 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 					sd_bus_bus != NULL && sd_bus_service != NULL &&
 					sd_bus_object_path != NULL && sd_bus_interface != NULL &&
 					sd_bus_method != NULL && sd_bus_method_signature != NULL && sd_bus_method_arguments != NULL) {
-
                     if (strcmp(sd_bus_bus, "SYSTEM") == 0)
                         rc = sd_bus_open_system(&bus);
                 	else
@@ -148,7 +147,7 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 
                     rc = bus_message_encode(sd_bus_method_signature, sd_bus_method_arguments, sd_message);
 					if (rc < SR_ERR_OK) {
-						SRP_LOG_ERR("failed to append sd-bus method arguments: %s", strerror(-rc));
+						SRP_LOG_ERR("failed to parse reply: %s", strerror(-rc));
 						goto cleanup;
 					}
 
@@ -182,7 +181,7 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 
 					xpath = realloc(xpath, strlen(RPC_SD_BUS_RESPONSE_XPATH) + strlen(sd_bus_method) + 1);
 					sprintf(xpath, RPC_SD_BUS_RESPONSE_XPATH, sd_bus_method);
-                    ret = lyd_new_path(output, NULL, xpath, (void *) sd_message_reply, LYD_ANYDATA_STRING, LYD_PATH_OPT_OUTPUT);
+                    ret = lyd_new_path(output, NULL, xpath, (void *) sd_bus_reply_string, LYD_ANYDATA_STRING, LYD_PATH_OPT_OUTPUT);
 					if (NULL == ret) {
 						rc = SR_ERR_INTERNAL;
 						SRP_LOG_ERRMSG("failed to set output");
@@ -205,10 +204,13 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 					sd_bus_method = NULL;
 					sd_bus_method_signature = NULL;
 					sd_bus_method_arguments = NULL;
+
 					free(sd_bus_reply_string);
 					sd_bus_reply_string = NULL;
-					free(sd_bus_reply_signature);
-					sd_bus_reply_signature = NULL;
+        			sd_bus_error_free(error);
+					sd_message = sd_bus_message_unref(sd_message);
+					sd_message_reply = sd_bus_message_unref(sd_message_reply);
+					bus = sd_bus_close_unref(bus);
                 }
             }
 
@@ -216,14 +218,13 @@ int generic_sdbus_call_rpc_tree_cb(sr_session_ctx_t *session, const char *op_pat
 		};
 	};
 cleanup:
-    free(sd_bus_reply_string);
     free(xpath);
     sd_bus_message_unref(sd_message);
-    sd_bus_message_unref(sd_message_reply);
-    sd_bus_close(bus);
-    sd_bus_unref(bus);
+	sd_message_reply = sd_bus_message_unref(sd_message_reply);
+    sd_bus_error_free(error);
+    sd_bus_close_unref(bus);
 	free(sd_bus_reply_string);
-	free(sd_bus_reply_signature);
+
     return rc;
 }
 

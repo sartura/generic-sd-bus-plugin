@@ -245,7 +245,9 @@ func parseConfig(configFile string) {
 				o, _ := xml.Marshal(result);
 				if string(reply.Data) == string(o) {
 					fmt.Printf("Sucess for test %d\n", i+1)
-				}
+				} else {
+					fmt.Printf("Fail for test %d\n", i+1)
+				} 
 
 			} else {
 				fmt.Printf("Sucess for test %d\n", i+1)

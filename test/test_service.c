@@ -57,16 +57,16 @@
 #define TEST_5_EXPECTED_RESULT "2 \"str_arg\" \"str_arg\" \"str_arg\" \"str_arg\""
 
 #define TEST_6_SIGNATURE "a(ssso)"
-//For the input '2 "str_arg" "str_arg" "str_arg" /test/test "str_arg" "str_arg" "str_arg" /test/test'
-#define TEST_6_EXPECTED_RESULT "2 \"str_arg\" \"str_arg\" \"str_arg\" /test/test \"str_arg\" \"str_arg\" \"str_arg\" /test/test"
+//For the input '2 "str_arg" "str_arg" "str_arg" "/test/test" "str_arg" "str_arg" "str_arg" "/test/test"'
+#define TEST_6_EXPECTED_RESULT "2 \"str_arg\" \"str_arg\" \"str_arg\" \"/test/test\" \"str_arg\" \"str_arg\" \"str_arg\" \"/test/test\""
 
 #define TEST_7_SIGNATURE "asssbb"
-//For the input '4 "str_arg" "str_arg" "str_arg" "str_arg" "str_arg" "str_arg" true false'
-#define TEST_7_EXPECTED_RESULT "4 \"str_arg\" \"str_arg\" \"str_arg\" \"str_arg\" \"str_arg\" \"str_arg\" true false"
+//For the input '4 "str_arg" "str_arg" "str_arg" "str_arg" "str_arg" "str_arg" 1 0'
+#define TEST_7_EXPECTED_RESULT "4 \"str_arg\" \"str_arg\" \"str_arg\" \"str_arg\" \"str_arg\" \"str_arg\" 1 0"
 
 #define TEST_8_SIGNATURE "sayssusaia(sv)"
-//For the input '"str_arg" 2 10 20 "str_arg" "str_arg" 1000 "str_arg" 3 1 2 3 3 "str_arg" s "str_arg" "str_arg" u 1000 "str_arg" b true'
-#define TEST_8_EXPECTED_RESULT "\"str_arg\" 2 10 20 \"str_arg\" \"str_arg\" 1000 \"str_arg\" 3 1 2 3 3 \"str_arg\" s \"str_arg\" \"str_arg\" u 1000 \"str_arg\" b true"
+//For the input '"str_arg" 2 10 20 "str_arg" "str_arg" 1000 "str_arg" 3 1 2 3 3 "str_arg" s "str_arg" "str_arg" u 1000 "str_arg" b 1'
+#define TEST_8_EXPECTED_RESULT "\"str_arg\" 2 10 20 \"str_arg\" \"str_arg\" 1000 \"str_arg\" 3 1 2 3 3 \"str_arg\" s \"str_arg\" \"str_arg\" u 1000 \"str_arg\" b 1"
 
 #define TEST_9_SIGNATURE "ssa(sv)a(sa(sv))"
 //For the input '"str_arg" "str_arg" 2 "str_arg" au 1 14460 "str_arg" s "str_arg" 2 "str_arg" 3 "str_arg" y 1 "str_arg" u 2 "str_arg" x 3 "str_arg" 0'
